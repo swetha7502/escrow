@@ -12,3 +12,21 @@
 ## 2026-10-23 — Token Factory /v1/models pricing is per-token strings
 - **What happened:** `GET /v1/models?verbose=true` returns `pricing.prompt`/`pricing.completion` as decimal strings in USD per token, e.g. `"0.0000003"`. This is handy, but undocumented in the OpenAI-compat shape. Nemotron IDs are inconsistent in casing (`nvidia/nemotron-3-super-120b-a12b` vs `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` vs `nvidia/Nemotron-3-Ultra-550b-a55b`).
 - **Workaround:** Copied exact IDs and prices into `docs/models.md`. The proxy refuses any model not in that table.
+
+## 2026-10-23 — GitHub clone stalled during NemoClaw prep
+- **What happened:** `git clone --depth 1 --branch lkg https://github.com/NVIDIA/NemoClaw.git` hung with no progress for over 2 minutes, and codeload ran at ~14 KB/s. npm was fast (7.8 MB/s) at the same time. Ten minutes later the same tarball came down at 12 MB/s.
+- **Workaround:** Waited and retried. The installer clones from GitHub, so a GitHub slowdown blocks install entirely. There's no mirror or tarball fallback.
+
+## 2026-10-23 — NemoClaw non-interactive onboard: "OpenClaw startup did not settle"
+- **What happened:** `nemoclaw.sh` with `NEMOCLAW_NON_INTERACTIVE=1 NEMOCLAW_PROVIDER=custom` built the sandbox (~13 min image build on WSL2 + Docker Desktop at 7.6 GiB) and verified inference through `inference.local`. Then it failed at [8/8] with `OpenClaw startup did not settle for 'escrow'` and installer exit 1. Right after, `nemoclaw escrow doctor` reported `Docker daemon: spawnSync docker ETIMEDOUT`, but a manual `docker ps` returned in 0.3s.
+- **Also:** The preflight warning text is self-contradictory: "detected 12 vCPU / 7.6 GiB; recommended 4 vCPU / 8 GiB". The real shortfall is only memory.
+- **Workaround:** Waited for the sandbox to finish starting. `nemoclaw escrow status` then showed it healthy. Ran `nemoclaw onboard --resume --non-interactive` with the same env.
+
+## 2026-10-23 — Custom endpoint docs vs. actual topology
+- **What happened:** The custom-endpoint docs talk about `host.openshell.internal` rewriting and bridge reachability. On this install (OpenShell 0.0.116, Docker driver), the OpenShell gateway runs as a native host process (`openshell-gateway` on 127.0.0.1:8080) and calls the custom endpoint from host loopback. The sandbox uses `inference.local`. The docs don't say clearly which topology you'll get.
+- **Workaround:** Kept the Escrow spend proxy bound to 127.0.0.1 only. Confirmed with `ss -ltnp`.
+
+## 2026-10-23 — `openshell sandbox exec -- openclaw agent` hangs, `nemoclaw <name> exec` works
+- **What happened:** `openshell sandbox exec -n escrow --no-tty -- openclaw agent -m ...` hung until timeout (300s, then 180s). It wrote nothing to the OpenClaw log and made no inference call. `nemoclaw escrow exec --no-stdin -- openclaw agent ...` returned in ~9s. Simple commands like `openclaw gateway status` worked under both.
+- **Also:** `nemoclaw escrow logs` and `doctor` intermittently report "Docker daemon is not reachable" because `docker info` takes ~5s on Docker Desktop/WSL2, while `docker ps` takes 0.3s. `openshell logs escrow` works as a fallback.
+- **Workaround:** Use `nemoclaw escrow exec --no-stdin` for agent turns, and `openshell logs` for logs.

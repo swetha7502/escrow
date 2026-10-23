@@ -20,6 +20,32 @@ export interface ProxyConfig {
   prices: Prices;
   logPath?: string;
   fetchImpl?: typeof fetch;
+  /** IPv4 CIDRs allowed to connect. Loopback is always allowed. */
+  allowedCidrs?: string[];
+}
+
+function ipv4ToInt(ip: string): number | null {
+  const m = /^(?:::ffff:)?(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(ip);
+  if (!m) return null;
+  const p = m.slice(1).map(Number);
+  if (p.some((x) => x > 255)) return null;
+  return ((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]) >>> 0;
+}
+
+export function sourceAllowed(remote: string | undefined, cidrs: string[]): boolean {
+  if (!remote) return false;
+  if (remote === "::1") return true;
+  const ip = ipv4ToInt(remote);
+  if (ip === null) return false;
+  for (const c of ["127.0.0.0/8", ...cidrs]) {
+    const [base, bitsS] = c.split("/");
+    const b = ipv4ToInt(base);
+    const bits = Number(bitsS);
+    if (b === null || !(bits >= 0 && bits <= 32)) continue;
+    const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0;
+    if (((ip & mask) >>> 0) === ((b & mask) >>> 0)) return true;
+  }
+  return false;
 }
 
 /** Fails unless the URL is https://api.tokenfactory.nebius.com/... */
@@ -78,6 +104,11 @@ export function createProxy(cfg: ProxyConfig): Server {
   };
 
   return createServer(async (req, res) => {
+    if (!sourceAllowed(req.socket.remoteAddress, cfg.allowedCidrs ?? [])) {
+      log({ event: "rejected_source", remote: req.socket.remoteAddress });
+      req.socket.destroy();
+      return;
+    }
     const path = (req.url ?? "/").split("?")[0].replace(/\/+$/, "");
     try {
       if (req.method === "GET" && path === "/healthz") {

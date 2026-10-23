@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
 import { SpendGuard, initState, readState, setCap } from "../lib/spend-guard/index.ts";
-import { createProxy, assertTokenFactoryUrl, MAX_TOKENS_CEILING } from "./proxy.ts";
+import { createProxy, assertTokenFactoryUrl, sourceAllowed, MAX_TOKENS_CEILING } from "./proxy.ts";
 
 const prices = { "m/super": { prompt: 0.0000003, completion: 0.0000009 } };
 const TOKEN = "t".repeat(40);
@@ -119,4 +119,16 @@ test("upstream URL must be Token Factory over https", () => {
   for (const u of ["http://api.tokenfactory.nebius.com/v1", "https://evil.example/v1", "https://api.tokenfactory.nebius.com.evil.io/v1", "https://api.tokenfactory.nebius.com:8443/v1"]) {
     assert.throws(() => assertTokenFactoryUrl(u), u);
   }
+});
+
+test("source allowlist: loopback always, listed CIDRs, nothing else", () => {
+  assert.ok(sourceAllowed("127.0.0.1", []));
+  assert.ok(sourceAllowed("::ffff:127.0.0.1", []));
+  assert.ok(sourceAllowed("::1", []));
+  assert.ok(!sourceAllowed("172.18.0.5", []));
+  assert.ok(sourceAllowed("172.18.0.5", ["172.18.0.0/16"]));
+  assert.ok(!sourceAllowed("172.19.0.5", ["172.18.0.0/16"]));
+  assert.ok(!sourceAllowed("192.168.1.10", ["172.18.0.0/16"]));
+  assert.ok(!sourceAllowed("fe80::1", ["172.18.0.0/16"]));
+  assert.ok(!sourceAllowed(undefined, []));
 });

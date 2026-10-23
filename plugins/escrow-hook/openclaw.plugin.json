@@ -1,13 +1,43 @@
 {
   "id": "escrow-hook",
   "name": "Escrow Hook",
-  "description": "Escrow safety layer: logs every tool call and blocks direct side effects.",
-  "activation": { "onStartup": true },
+  "description": "Escrow safety layer: holds every side effect in escrow until the session is verified.",
+  "activation": {
+    "onStartup": true
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "logPath": { "type": "string" }
+      "stateDir": {
+        "type": "string"
+      }
+    }
+  },
+  "contracts": {
+    "tools": [
+      "escrow_send_email",
+      "escrow_write_external",
+      "escrow_status",
+      "escrow_commit",
+      "escrow_abort"
+    ]
+  },
+  "toolMetadata": {
+    "escrow_send_email": {
+      "optional": false
+    },
+    "escrow_write_external": {
+      "optional": false
+    },
+    "escrow_status": {
+      "optional": false
+    },
+    "escrow_commit": {
+      "optional": false
+    },
+    "escrow_abort": {
+      "optional": false
     }
   }
 }

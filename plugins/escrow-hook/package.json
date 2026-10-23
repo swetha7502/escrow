@@ -5,7 +5,7 @@
   "private": true,
   "openclaw": {
     "extensions": [
-      "./dist/index.js"
+      "./dist/plugins/escrow-hook/index.js"
     ]
   },
   "files": [

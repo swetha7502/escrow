@@ -5,15 +5,26 @@
     "moduleResolution": "NodeNext",
     "strict": true,
     "outDir": "dist",
-    "rootDir": ".",
+    "rootDir": "../..",
     "rewriteRelativeImportExtensions": true,
     "allowImportingTsExtensions": false,
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "declaration": false,
-    "types": ["node"],
-    "typeRoots": ["../../node_modules/@types"]
+    "types": [
+      "node"
+    ],
+    "typeRoots": [
+      "../../node_modules/@types"
+    ]
   },
-  "include": ["index.ts", "decide.ts"]
+  "include": [
+    "index.ts",
+    "decide.ts",
+    "policy.ts",
+    "../../lib/escrow/txn.ts",
+    "../../lib/escrow/shadow-fs.ts",
+    "../../lib/escrow/verify.ts"
+  ]
 }

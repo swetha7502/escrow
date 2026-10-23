@@ -43,3 +43,8 @@
 ## 2026-10-23 — 402 from the spend proxy puts OpenClaw into a long billing backoff
 - **What happened:** After the proxy returned 402 (cap reached), OpenClaw kept rejecting agent turns with "Inline API key for provider "inference" is temporarily disabled after a provider auth/billing failure. Retry after about 1 minute". That held for ~12 minutes, across a gateway restart, even after the cap was raised. Source: billing backoff is 10 min doubling to 24 h. The "about 1 minute" message is misleading.
 - **Workaround:** Wait it out. Document that cached mode pauses the agent for at least the backoff window.
+
+## 2026-10-23 — Plugin `api.resolvePath` not usable for tool paths; gateway restart readiness timeout
+- **What happened:** In `before_tool_call`, `api.resolvePath("course/notes/x.md")` didn't return a usable absolute path (NemoClaw's own plugin has a comment about the same thing). The `write` tool sends `{path, content, workdir}`, and relative paths resolve against `workdir`.
+- **Also:** `nemoclaw escrow gateway restart` failed twice with "readiness did not pass … timeout", but the gateway was up and serving the reloaded plugin seconds later (confirmed from the gateway log). There's no flag to lengthen the readiness wait.
+- **Workaround:** Resolve against `params.workdir` (else `/sandbox/.openclaw/workspace`). After a restart "failure", check the gateway log for the plugin's load line.

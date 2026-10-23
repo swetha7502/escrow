@@ -1,7 +1,5 @@
-// Pure policy for the before_tool_call hook. No OpenClaw imports, so it's unit-testable on the host.
-
-/** Tools blocked outright. A side effect has to go through Escrow's outbox instead. */
-export const BLOCKED_TOOLS = new Set(["exec", "process"]);
+// Audit-log formatting and the simple block decision. No OpenClaw imports, so it's unit-testable on the host.
+import { classify } from "./policy.ts";
 
 export interface ToolCallEvent {
   toolName: string;
@@ -25,15 +23,14 @@ export interface Decision {
   blockReason?: string;
 }
 
+/** Blocks anything the default-deny policy doesn't classify as allowed. */
 export function decide(ev: ToolCallEvent): Decision {
-  const name = ev.toolName.toLowerCase();
-  if (BLOCKED_TOOLS.has(name) || ev.toolKind === "code_mode_exec") {
-    return { block: true, blockReason: `Escrow: tool "${ev.toolName}" is blocked in this sandbox. Side effects must go through the Escrow outbox.` };
-  }
-  return { block: false };
+  return classify(ev.toolName, ev.toolKind) === "block"
+    ? { block: true, blockReason: `Escrow: tool "${ev.toolName}" is not allowed in this sandbox. Use escrow_send_email / escrow_write_external for side effects.` }
+    : { block: false };
 }
 
-export function logLine(ev: ToolCallEvent, ctx: ToolCallCtx, d: Decision, now = new Date()): string {
+export function logLine(ev: ToolCallEvent, ctx: ToolCallCtx, d: Decision, extra: Record<string, unknown> = {}, now = new Date()): string {
   return JSON.stringify({
     ts: now.toISOString(),
     hook: "before_tool_call",
@@ -48,5 +45,6 @@ export function logLine(ev: ToolCallEvent, ctx: ToolCallCtx, d: Decision, now = 
     agentId: ctx.agentId,
     decision: d.block ? "blocked" : "allowed",
     reason: d.blockReason,
+    ...extra,
   });
 }

@@ -30,3 +30,7 @@
 - **What happened:** `openshell sandbox exec -n escrow --no-tty -- openclaw agent -m ...` hung until timeout (300s, then 180s). It wrote nothing to the OpenClaw log and made no inference call. `nemoclaw escrow exec --no-stdin -- openclaw agent ...` returned in ~9s. Simple commands like `openclaw gateway status` worked under both.
 - **Also:** `nemoclaw escrow logs` and `doctor` intermittently report "Docker daemon is not reachable" because `docker info` takes ~5s on Docker Desktop/WSL2, while `docker ps` takes 0.3s. `openshell logs escrow` works as a fallback.
 - **Workaround:** Use `nemoclaw escrow exec --no-stdin` for agent turns, and `openshell logs` for logs.
+
+## 2026-10-23 — inference.local L7 rules don't restrict recognized inference paths
+- **What happened:** The policy for `inference.local:443` allowed only `GET /v1/models` and `POST /v1/chat/completions`. From the sandbox, `GET /v1/files` was denied (403, OPA), but `POST /v1/embeddings` was forwarded to the configured provider endpoint. Our proxy logged it and returned 404. The managed inference router seems to handle known inference routes before the L7 rules apply. This isn't documented.
+- **Workaround:** The host-side Escrow proxy enforces the real path allowlist (chat completions only).

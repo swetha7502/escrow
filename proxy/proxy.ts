@@ -113,11 +113,14 @@ export function createProxy(cfg: ProxyConfig): Server {
     try {
       if (req.method === "GET" && path === "/healthz") {
         const st = cfg.guard.status();
-        return send(res, 200, st.ok
-          ? { mode: "live", totalUsd: st.state.totalUsd, capUsd: st.capUsd }
-          : { mode: "cached", reason_code: st.code });
+        if (!st.ok) return send(res, 200, { mode: "cached", reason_code: st.code });
+        const atCap = st.state.totalUsd >= st.capUsd;
+        return send(res, 200, { mode: atCap ? "cached" : "live", ...(atCap ? { reason_code: "cap_reached" } : {}), totalUsd: st.state.totalUsd, capUsd: st.capUsd });
       }
-      if (!authed(req)) return send(res, 401, { error: { type: "unauthorized", message: "missing or bad proxy token" } });
+      if (!authed(req)) {
+        log({ event: "unauthorized", method: req.method, path });
+        return send(res, 401, { error: { type: "unauthorized", message: "missing or bad proxy token" } });
+      }
 
       if (req.method === "GET" && path === "/v1/models") {
         const st = cfg.guard.status();
@@ -125,6 +128,7 @@ export function createProxy(cfg: ProxyConfig): Server {
         return send(res, 200, { object: "list", data: Object.keys(cfg.prices).map((id) => ({ id, object: "model", owned_by: "tokenfactory" })) });
       }
       if (req.method !== "POST" || path !== "/v1/chat/completions") {
+        log({ event: "not_proxied", method: req.method, path });
         return send(res, 404, { error: { type: "not_found", message: `${req.method} ${path} is not proxied` } });
       }
 

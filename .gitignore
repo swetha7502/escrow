@@ -3,3 +3,4 @@ node_modules/
 *.log
 evidence/raw/
 state/
+plugins/*/dist/

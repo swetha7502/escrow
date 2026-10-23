@@ -34,3 +34,12 @@
 ## 2026-10-23 — inference.local L7 rules don't restrict recognized inference paths
 - **What happened:** The policy for `inference.local:443` allowed only `GET /v1/models` and `POST /v1/chat/completions`. From the sandbox, `GET /v1/files` was denied (403, OPA), but `POST /v1/embeddings` was forwarded to the configured provider endpoint. Our proxy logged it and returned 404. The managed inference router seems to handle known inference routes before the L7 rules apply. This isn't documented.
 - **Workaround:** The host-side Escrow proxy enforces the real path allowlist (chat completions only).
+
+## 2026-10-23 — Installing a local TypeScript OpenClaw plugin in the sandbox
+- **What happened:** `openclaw plugins install /sandbox/escrow-hook --force` refused a TS entry: "package install requires compiled runtime output for TypeScript entry ./index.ts". The docs' quick-start uses `./index.ts` with `--link`. The next attempt failed with `Plugin "escrow-hook" requires capability consent`, even though the plugin is hook-only and declares no capabilities (`capabilityCount: 0`).
+- **Also:** `openshell sandbox upload <dir> /sandbox/escrow-hook` nests the dir (`/sandbox/escrow-hook/escrow-hook`). `openshell sandbox download` refuses paths outside `/sandbox`, such as `/tmp`.
+- **Workaround:** Compile to `dist/` with `tsc` and point `openclaw.extensions` at `./dist/index.js`. Pass `--accept-capabilities`. See `scripts/install-plugin.sh`.
+
+## 2026-10-23 — 402 from the spend proxy puts OpenClaw into a long billing backoff
+- **What happened:** After the proxy returned 402 (cap reached), OpenClaw kept rejecting agent turns with "Inline API key for provider "inference" is temporarily disabled after a provider auth/billing failure. Retry after about 1 minute". That held for ~12 minutes, across a gateway restart, even after the cap was raised. Source: billing backoff is 10 min doubling to 24 h. The "about 1 minute" message is misleading.
+- **Workaround:** Wait it out. Document that cached mode pauses the agent for at least the backoff window.

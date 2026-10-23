@@ -1,0 +1,13 @@
+{
+  "id": "escrow-hook",
+  "name": "Escrow Hook",
+  "description": "Escrow safety layer: logs every tool call and blocks direct side effects.",
+  "activation": { "onStartup": true },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "logPath": { "type": "string" }
+    }
+  }
+}

@@ -50,7 +50,7 @@ export class Txn {
   writeExternal(target: string, content: string): string {
     this.assertOpen();
     const id = `eff-${randomUUID()}`;
-    this.effects.push({ id, kind: "write_external", text: `${target}\n${content}`, payload: { target, content } });
+    this.effects.push({ id, kind: "write_external", target, text: `${target}\n${content}`, payload: { target, content } });
     return id;
   }
 }

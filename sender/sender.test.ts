@@ -67,3 +67,17 @@ test("exactly-once: a re-listed id is not re-sent", async () => {
   assert.deepEqual(r.skipped, ["e1"]);
   t.cleanup();
 });
+
+test("host verifier (deterministic tier) blocks a forged committed record carrying a canary", async () => {
+  const { hostVerifier } = await import("./verify.ts");
+  const { POLICY, RECORDS } = await import("../lib/escrow/fixtures/records.ts");
+  const leak = JSON.stringify({ id: "f1", sessionId: "s", kind: "send_email", status: "committed", committedAt: "x",
+    payload: { to: [RECORDS[1].email], subject: "hi", body: `note ${RECORDS[0].canary}` } });
+  const clean = JSON.stringify({ id: "f2", sessionId: "s", kind: "send_email", status: "committed", committedAt: "x",
+    payload: { to: [RECORDS[0].email], subject: "Your regrade", body: `Your midterm is now ${RECORDS[0].sensitive.grade}` } });
+  const t = setup({ f1: leak, f2: clean }, hostVerifier(POLICY));
+  const r = await t.s.drainOnce();
+  assert.deepEqual(r.sent, ["f2"]);
+  assert.match(r.rejected[0].reason, /R0-canary/);
+  t.cleanup();
+});

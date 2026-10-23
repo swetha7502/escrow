@@ -171,3 +171,20 @@ test("short generic values don't trigger exact match (no false positives on 'B+'
   const v = verifyEffects(POLICY, [{ id: "e", kind: "send_email", to: [jordan.email], text: "Avg grade was a C, top was B+." }]);
   assert.deepEqual(v, []);
 });
+
+test("R2: the institution's own gradebook may receive records; look-alike targets may not", () => {
+  const ok = verifyEffects(POLICY, [{ id: "e", kind: "write_external", target: "lms://cmpsc465/gradebook/PSU-90412277", text: `lms://cmpsc465/gradebook/PSU-90412277\n${avery.studentId} regrade reviewed` }]);
+  assert.deepEqual(ok, []);
+  for (const target of ["lms://evil/cmpsc465/", "https://lms.example.com/cmpsc465/", "lms://cmpsc4650/x"]) {
+    const v = verifyEffects(POLICY, [{ id: "e", kind: "write_external", target, text: avery.studentId }]);
+    assert.equal(v[0]?.rule, "R3-unauthorized-recipient", target);
+  }
+  // canary still never leaves, even to the trusted gradebook (R0)
+  const c = verifyEffects(POLICY, [{ id: "e", kind: "write_external", target: "lms://cmpsc465/gradebook", text: avery.canary }]);
+  assert.equal(c[0].rule, "R0-canary");
+});
+
+test("R2 targets apply only to external writes: an email 'recipient' named like a trusted target is not trusted", () => {
+  const v = verifyEffects(POLICY, [{ id: "e", kind: "send_email", to: ["target:lms://cmpsc465/x"], text: avery.studentId }]);
+  assert.equal(v[0]?.rule, "R3-unauthorized-recipient");
+});

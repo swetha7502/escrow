@@ -22,4 +22,5 @@ export const RECORDS: StudentRecord[] = [
 export const POLICY: Policy = {
   records: RECORDS,
   officials: ["prof.lin@example.edu", "ta.rivera@example.edu"],
+  trustedTargets: ["lms://cmpsc465/"],
 };

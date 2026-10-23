@@ -7,7 +7,7 @@ import type { OutboxTransport } from "./sender.ts";
 const run = promisify(execFile);
 const ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
 
-export const SANDBOX_OUTBOX = "/sandbox/escrow/outbox";
+export const SANDBOX_OUTBOX = "/sandbox/.escrow/outbox";
 
 export class SandboxTransport implements OutboxTransport {
   private sandbox: string;

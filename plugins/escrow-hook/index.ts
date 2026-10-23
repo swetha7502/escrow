@@ -33,13 +33,22 @@ export default definePluginEntry({
     const auditPath = join(stateDir, "audit.jsonl");
     const policyPath = join(stateDir, "policy.json");
     mkdirSync(stateDir, { recursive: true });
-    const tm = new TransactionManager({
-      workspace: WORKSPACE_ROOT,
-      shadowBase: join(stateDir, "shadow"),
-      outboxDir: join(stateDir, "outbox"),
-      policy: () => loadPolicy(policyPath), // re-read at every commit; missing or bad → commit refused
-    });
-    const audit = (o: Record<string, unknown>) => appendFileSync(auditPath, JSON.stringify({ ts: new Date().toISOString(), ...o }) + "\n");
+    // One manager per process. OpenClaw may call register() more than once (hot reload, registry
+    // rebuilds), and open transactions must survive that. Still in-memory, no WAL.
+    const g = globalThis as { __escrowTM?: { tm: TransactionManager; instance: string } };
+    g.__escrowTM ??= {
+      instance: Math.random().toString(36).slice(2, 8),
+      tm: new TransactionManager({
+        workspace: WORKSPACE_ROOT,
+        shadowBase: join(stateDir, "shadow"),
+        outboxDir: join(stateDir, "outbox"),
+        policy: () => loadPolicy(policyPath), // re-read at every commit; missing or bad → commit refused
+      }),
+    };
+    const { tm, instance } = g.__escrowTM;
+    const proc = { pid: process.pid, tm: instance };
+    const audit = (o: Record<string, unknown>) => appendFileSync(auditPath, JSON.stringify({ ts: new Date().toISOString(), ...proc, ...o }) + "\n");
+    audit({ event: "register" });
     // Resolve the way the file tools do: relative to params.workdir, else the agent workspace
     const resolveTool = (raw: unknown, params: Params) =>
       absPath(raw, typeof params.workdir === "string" && params.workdir.startsWith("/") ? params.workdir : DEFAULT_BASE);
@@ -82,7 +91,7 @@ export default definePluginEntry({
 
       const d = result && "block" in result ? { block: true, blockReason: result.blockReason } : { block: false };
       try {
-        appendFileSync(auditPath, logLine(ev, c, d, { class: cls, note, rewritten: result && "params" in result ? result.params : undefined }) + "\n");
+        appendFileSync(auditPath, logLine(ev, c, d, { ...proc, class: cls, note, rewritten: result && "params" in result ? result.params : undefined }) + "\n");
       } catch (e) {
         api.logger.error(`escrow-hook: audit write failed (${(e as Error).message}); blocking ${ev.toolName}`);
         return { block: true, blockReason: "Escrow: audit log unavailable" };

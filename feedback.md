@@ -48,3 +48,7 @@
 - **What happened:** In `before_tool_call`, `api.resolvePath("course/notes/x.md")` didn't return a usable absolute path (NemoClaw's own plugin has a comment about the same thing). The `write` tool sends `{path, content, workdir}`, and relative paths resolve against `workdir`.
 - **Also:** `nemoclaw escrow gateway restart` failed twice with "readiness did not pass … timeout", but the gateway was up and serving the reloaded plugin seconds later (confirmed from the gateway log). There's no flag to lengthen the readiness wait.
 - **Workaround:** Resolve against `params.workdir` (else `/sandbox/.openclaw/workspace`). After a restart "failure", check the gateway log for the plugin's load line.
+
+## 2026-10-23 — OpenClaw calls a plugin's register() once per agent run
+- **What happened:** In the sandbox gateway (single pid), `register(api)` for our plugin ran again at the start of each `openclaw agent` run. Any state created in `register()` (our per-session transaction manager) was silently replaced, so a multi-turn session lost its open transaction. The hooks docs say "Keep register(api) synchronous and register handlers there", but don't say it can be called repeatedly in one process.
+- **Workaround:** Keep long-lived plugin state in a module/`globalThis` singleton, not in `register()` closures.

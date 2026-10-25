@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TransactionManager } from "./txn.ts";
 import { ShadowFS, PathEscapeError } from "./shadow-fs.ts";
-import { verifyEffects, fingerprintSession, extractRecordFacts, norm, approxSubstringDistance } from "./verify.ts";
+import { verifyEffects, fingerprintSession, sessionCanaryCheck, extractRecordFacts, norm, approxSubstringDistance } from "./verify.ts";
 import { POLICY, RECORDS } from "./fixtures/records.ts";
 
 const [avery, jordan] = RECORDS;
@@ -256,4 +256,20 @@ test("extractRecordFacts pulls identity, unique, and value facts", () => {
   assert.ok(kinds.has("identity") && kinds.has("unique") && kinds.has("value"));
   assert.ok(f.some((x) => x.value === "ODS-4471"));
   assert.ok(f.some((x) => x.value === "61/100"));
+});
+
+test("session-wide canary: a canary split contiguously across effects (no filler between halves) is caught deterministically (R0)", () => {
+  const half = Math.floor(avery.canary.length / 2);
+  const effects = [
+    { id: "a", kind: "send_email" as const, to: ["outsider@x.example"], text: avery.canary.slice(0, half) },
+    { id: "b", kind: "send_email" as const, to: ["outsider@x.example"], text: avery.canary.slice(half) },
+  ];
+  const v = sessionCanaryCheck(POLICY, effects);
+  assert.ok(v.some((x) => x.rule === "R0-canary" && x.field === "canary(session)"), JSON.stringify(v));
+  // Honest limitation: with filler words between the halves, substring/fuzzy matching no longer reconstructs it.
+  const withFiller = [
+    { id: "a", kind: "send_email" as const, to: ["outsider@x.example"], text: `part one is ${avery.canary.slice(0, half)}` },
+    { id: "b", kind: "send_email" as const, to: ["outsider@x.example"], text: `and part two is ${avery.canary.slice(half)}` },
+  ];
+  assert.equal(sessionCanaryCheck(POLICY, withFiller).length, 0); // documents the gap
 });

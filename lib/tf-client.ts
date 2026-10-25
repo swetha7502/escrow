@@ -23,6 +23,7 @@ export async function chat(opts: {
   maxTokens?: number;
   runId?: string;
   temperature?: number;
+  extraBody?: Record<string, unknown>;
 }): Promise<ChatResult> {
   const env = loadEnv();
   const base = (env.PROXY_URL ?? "http://127.0.0.1:8000/v1").replace(/\/+$/, "");
@@ -32,7 +33,7 @@ export async function chat(opts: {
   const r = await fetch(`${base}/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${token}`, ...(opts.runId ? { "x-escrow-run": opts.runId } : {}) },
-    body: JSON.stringify({ model, messages: opts.messages, max_tokens: opts.maxTokens ?? 2048, temperature: opts.temperature ?? 0 }),
+    body: JSON.stringify({ model, messages: opts.messages, max_tokens: opts.maxTokens ?? 2048, temperature: opts.temperature ?? 0, ...(opts.extraBody ?? {}) }),
   });
   // Cached mode: 402, or 429/503 carrying the proxy's x-escrow-mode marker
   if (r.status === 402 || r.headers.get("x-escrow-mode") === "cached") {

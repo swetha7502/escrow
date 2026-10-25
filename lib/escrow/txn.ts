@@ -3,7 +3,7 @@
 import { mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { ShadowFS } from "./shadow-fs.ts";
-import { verifyEffects, fingerprintSession, type Policy, type OutboundEffect, type Violation } from "./verify.ts";
+import { verifyEffects, fingerprintSession, sessionCanaryCheck, type Policy, type OutboundEffect, type Violation } from "./verify.ts";
 import { randomUUID as _uuid } from "node:crypto";
 
 export type TxnState = "open" | "committed" | "aborted";
@@ -65,6 +65,11 @@ export class Txn {
   }
 }
 
+function dedupeViolations(vs: Violation[]): Violation[] {
+  const seen = new Set<string>();
+  return vs.filter((v) => { const k = `${v.rule}|${v.studentId}|${v.field}`; if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
 export class TransactionManager {
   private txns = new Map<string, Txn>();
   private workspace: string;
@@ -98,7 +103,7 @@ export class TransactionManager {
     const t = this.txns.get(sessionId);
     if (!t || t.state !== "open") throw new Error(`no open transaction for ${sessionId}`);
     const policy = this.getPolicy();
-    const violations = [...verifyEffects(policy, t.effects), ...fingerprintSession(policy, t.effects)];
+    const violations = dedupeViolations([...verifyEffects(policy, t.effects), ...sessionCanaryCheck(policy, t.effects), ...fingerprintSession(policy, t.effects)]);
     if (violations.length) {
       this.abort(sessionId);
       return { ok: false, state: "aborted", violations, filesCommitted: [], effectsReleased: [] };
@@ -124,7 +129,8 @@ export class TransactionManager {
    * No session context and no commit gate. This is the comparison point for Escrow.
    */
   releaseNow(sessionId: string, e: PendingEffect): Violation[] {
-    const v = verifyEffects(this.getPolicy(), [e]);
+    const policy = this.getPolicy();
+    const v = [...verifyEffects(policy, [e]), ...fingerprintSession(policy, [e])];
     if (!v.length) this.writeOutbox(sessionId, e);
     return v;
   }
@@ -137,7 +143,7 @@ export class TransactionManager {
     const t = this.txns.get(sessionId);
     if (!t || t.state !== "open") throw new Error(`no open transaction for ${sessionId}`);
     const policy = this.getPolicy();
-    const deterministic = [...verifyEffects(policy, t.effects), ...fingerprintSession(policy, t.effects)];
+    const deterministic = dedupeViolations([...verifyEffects(policy, t.effects), ...sessionCanaryCheck(policy, t.effects), ...fingerprintSession(policy, t.effects)]);
     if (deterministic.length) {
       this.abort(sessionId);
       return { ok: false, state: "aborted", violations: deterministic, filesCommitted: [], effectsReleased: [], judged: false };

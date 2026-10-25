@@ -2,7 +2,7 @@
 // context, and released immediately if clean. "escrow" holds every effect and verifies the whole
 // session at commit.
 import { readFileSync } from "node:fs";
-import { verifyEffects, type OutboundEffect, type Policy, type Violation } from "./verify.ts";
+import { verifyEffects, fingerprintSession, type OutboundEffect, type Policy, type Violation } from "./verify.ts";
 
 export type Mode = "baseline" | "escrow";
 
@@ -15,7 +15,7 @@ export function readMode(path: string): Mode {
   }
 }
 
-/** Baseline check: the same deterministic checks, applied to one effect in isolation. */
+/** Baseline check: the same exact/canary/fingerprint checks, applied to ONE effect in isolation (no session). */
 export function baselineCheck(policy: Policy, effect: OutboundEffect): Violation[] {
-  return verifyEffects(policy, [effect]);
+  return [...verifyEffects(policy, [effect]), ...fingerprintSession(policy, [effect])];
 }

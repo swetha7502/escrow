@@ -34,9 +34,15 @@ allowed host is `inference.local` or aborts.
   So a rebuild carries the *current* locked-down policy (v2, inference.local only) forward — it does **not**
   reset to the tier default. Confirmed in source; a live rebuild on this machine couldn't complete (Docker/WSL
   backup failures, see feedback.md) and the policy stayed `v2 ['inference.local']` throughout.
-* **`nemoclaw onboard` (fresh/recreate): applies the tier preset.** A fresh onboard builds the sandbox from the
-  `restricted` tier preset, which is broader than our lockdown (this is exactly how M1 produced a policy allowing
-  clawhub/npm/nvidia/openclaw hosts that we then had to lock down). So onboard **does** reset the egress policy.
+* **`nemoclaw onboard` (fresh/recreate): resets to the tier preset — confirmed live.** A rebuild on this machine
+  repeatedly wedged the sandbox (see feedback.md), so recovery was a fresh `onboard --fresh --recreate-sandbox`.
+  Immediately after it finished, the egress policy had reverted to the broad default:
+  ```
+  $ openshell policy get escrow --full -o json   # right after fresh onboard
+  v1 effective
+  hosts: ['catalog.openclaw.ai', 'clawhub.ai', 'docs.openclaw.ai', 'inference.local', 'integrate.api.nvidia.com', 'openclaw.ai', 'registry.npmjs.org']
+  ```
+  So onboard **does** reset the egress policy. Running `up.sh` afterward restored `v2 ['inference.local']`.
 
 **Either way, `up.sh` re-asserts the lockdown**, so running it after any rebuild/onboard restores
 `inference.local`-only egress. Operators must run `up.sh` (or the `openshell policy set` line) after onboarding.

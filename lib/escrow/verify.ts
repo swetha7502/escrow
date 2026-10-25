@@ -175,6 +175,22 @@ export function extractPolicyFacts(policy: Policy): Fact[] {
  * authorized for it: either a UNIQUE identifier appears, or an IDENTITY token co-occurs with a
  * sensitive VALUE. Co-occurrence (not a bare number/name) is what keeps false positives down.
  */
+/**
+ * Session-wide canary check: join the whole session's outgoing text and look for each canary
+ * (exact + fuzzy). Catches a honeytoken split across several effects, which per-effect R0 misses.
+ */
+export function sessionCanaryCheck(policy: Policy, effects: OutboundEffect[]): Violation[] {
+  const hay = norm(effects.flatMap((e) => expandEncodings(e.text)).join("\n"));
+  const v: Violation[] = [];
+  const ids = effects.map((e) => e.id).join(",");
+  for (const rec of policy.records) {
+    const c = norm(rec.canary);
+    if (hay.includes(c)) v.push({ effectId: ids, rule: "R0-canary", studentId: rec.studentId, field: "canary(session)", match: rec.canary });
+    else if (approxSubstringDistance(c, hay) <= fuzzyBudget(c.length)) v.push({ effectId: ids, rule: "R0-canary-fuzzy", studentId: rec.studentId, field: "canary(session)", match: rec.canary });
+  }
+  return v;
+}
+
 export function fingerprintSession(policy: Policy, effects: OutboundEffect[]): Violation[] {
   const hay = effects.flatMap((e) => expandEncodings(e.text)).map(norm).join("\n");
   const present = (f: Fact) => hay.includes(f.norm);

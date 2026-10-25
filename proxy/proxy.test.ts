@@ -5,14 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
 import { SpendGuard, initState, readState, setCap } from "../lib/spend-guard/index.ts";
-import { createProxy, assertTokenFactoryUrl, sourceAllowed, MAX_TOKENS_CEILING } from "./proxy.ts";
+import { createProxy, assertTokenFactoryUrl, sourceAllowed, parseStopStatus, MAX_TOKENS_CEILING } from "./proxy.ts";
 
 const prices = { "m/super": { prompt: 0.0000003, completion: 0.0000009 } };
 const TOKEN = "t".repeat(40);
 
 type Seen = { url: string; auth: string | null; body: Record<string, unknown> };
 
-async function setup(upstream: (seen: Seen) => Response) {
+async function setup(upstream: (seen: Seen) => Response, extra: Partial<Parameters<typeof createProxy>[0]> = {}) {
   const dir = mkdtempSync(join(tmpdir(), "proxy-"));
   const statePath = join(dir, "spend.json");
   initState(statePath);
@@ -23,7 +23,7 @@ async function setup(upstream: (seen: Seen) => Response) {
     return upstream(s);
   }) as unknown as typeof fetch;
   const guard = new SpendGuard({ statePath, prices, creditExpiry: "2099-01-01" });
-  const server = createProxy({ upstreamBase: "https://api.tokenfactory.nebius.com/v1", upstreamKey: "REAL-KEY", proxyToken: TOKEN, guard, prices, fetchImpl });
+  const server = createProxy({ upstreamBase: "https://api.tokenfactory.nebius.com/v1", upstreamKey: "REAL-KEY", proxyToken: TOKEN, guard, prices, fetchImpl, ...extra });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const call = (body: unknown, token = TOKEN) => fetch(`${base}/v1/chat/completions`, {
@@ -131,4 +131,20 @@ test("source allowlist: loopback always, listed CIDRs, nothing else", () => {
   assert.ok(!sourceAllowed("192.168.1.10", ["172.18.0.0/16"]));
   assert.ok(!sourceAllowed("fe80::1", ["172.18.0.0/16"]));
   assert.ok(!sourceAllowed(undefined, []));
+});
+
+test("stop status is configurable: 503 + Retry-After, still cached mode, upstream never called", async () => {
+  for (const status of [429, 503] as const) {
+    const t = await setup(ok, { stopStatus: status, retryAfterSec: 15 });
+    setCap(t.statePath, 0.000001);
+    const r = await t.call(msg);
+    assert.equal(r.status, status);
+    assert.equal(r.headers.get("retry-after"), "15");
+    assert.equal(r.headers.get("x-escrow-mode"), "cached");
+    const j = await r.json() as { error: { message: string } };
+    assert.doesNotMatch(j.error.message, /payment required|insufficient credits|spend(ing)? limit|overloaded|service.unavailable|credit balance/i);
+    assert.equal(t.seen.length, 0);
+    t.close();
+  }
+  assert.throws(() => parseStopStatus("500"));
 });

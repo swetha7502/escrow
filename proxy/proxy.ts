@@ -22,6 +22,17 @@ export interface ProxyConfig {
   fetchImpl?: typeof fetch;
   /** IPv4 CIDRs allowed to connect. Loopback is always allowed. */
   allowedCidrs?: string[];
+  /** HTTP status for a refused (cached-mode) call: 402, 429, or 503. See evidence/backoff.md. */
+  stopStatus?: StopStatus;
+  /** Retry-After seconds sent with 429/503 */
+  retryAfterSec?: number;
+}
+
+export type StopStatus = 402 | 429 | 503;
+export function parseStopStatus(v: string | undefined): StopStatus {
+  const n = Number(v ?? 429); // default 429: refuses like 402 without tripping OpenClaw's billing lockout (evidence/backoff.md)
+  if (n === 402 || n === 429 || n === 503) return n;
+  throw new Error(`PROXY_STOP_STATUS must be 402, 429 or 503, got ${v}`);
 }
 
 function ipv4ToInt(ip: string): number | null {
@@ -64,9 +75,11 @@ function send(res: ServerResponse, status: number, body: unknown, headers: Recor
   res.end(JSON.stringify(body));
 }
 
-function stopped(res: ServerResponse, d: Decision & { ok: false }) {
-  send(res, 402, { error: { type: "spend_guard_stopped", code: "cached_mode", reason_code: d.code, message: `Escrow spend guard: live inference stopped (${d.reason}). Use cached mode.` } },
-    { "x-escrow-mode": "cached", "x-escrow-stop-reason": d.code });
+// The message avoids words OpenClaw's failover classifier maps to "billing" or "overloaded"
+// (openclaw/dist/message-patterns-*.js), so the status code alone decides how the agent backs off.
+function stopped(res: ServerResponse, d: Decision & { ok: false }, status: StopStatus = 402, retryAfterSec = 60) {
+  send(res, status, { error: { type: "spend_guard_stopped", code: "cached_mode", reason_code: d.code, message: `Escrow spend guard: live inference paused (${d.reason}). Use cached mode.` } },
+    { "x-escrow-mode": "cached", "x-escrow-stop-reason": d.code, ...(status !== 402 ? { "retry-after": String(retryAfterSec) } : {}) });
 }
 
 async function readBody(req: IncomingMessage): Promise<Buffer> {
@@ -124,7 +137,7 @@ export function createProxy(cfg: ProxyConfig): Server {
 
       if (req.method === "GET" && path === "/v1/models") {
         const st = cfg.guard.status();
-        if (!st.ok) return stopped(res, st);
+        if (!st.ok) return stopped(res, st, cfg.stopStatus, cfg.retryAfterSec);
         return send(res, 200, { object: "list", data: Object.keys(cfg.prices).map((id) => ({ id, object: "model", owned_by: "tokenfactory" })) });
       }
       if (req.method !== "POST" || path !== "/v1/chat/completions") {
@@ -157,7 +170,7 @@ export function createProxy(cfg: ProxyConfig): Server {
       const d = cfg.guard.check({ model, runId, maxUsage: { promptTokens: fwd.length + PROMPT_SLACK_TOKENS, completionTokens: maxTokens } });
       if (!d.ok) {
         log({ event: "blocked", model, runId, code: d.code, reason: d.reason });
-        return stopped(res, d);
+        return stopped(res, d, cfg.stopStatus, cfg.retryAfterSec);
       }
       const r = d.reservation;
 

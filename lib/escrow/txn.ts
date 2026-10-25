@@ -2,11 +2,14 @@
 // shadow file writes and outbound effects are released only when verification passes at commit.
 import { mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
 import { ShadowFS } from "./shadow-fs.ts";
-import { verifyEffects, type Policy, type OutboundEffect, type Violation } from "./verify.ts";
+import { verifyEffects, fingerprintSession, type Policy, type OutboundEffect, type Violation } from "./verify.ts";
+import { randomUUID as _uuid } from "node:crypto";
 
 export type TxnState = "open" | "committed" | "aborted";
+
+/** Thrown when the judge tier can't produce a verdict; the caller must treat the commit as blocked. */
+export class JudgeUnavailableError extends Error {}
 
 export interface PendingEffect extends OutboundEffect {
   payload: Record<string, unknown>;
@@ -18,6 +21,13 @@ export interface CommitResult {
   violations: Violation[];
   filesCommitted: string[];
   effectsReleased: string[];
+}
+
+export function buildEmailEffect(to: string[], subject: string, body: string): PendingEffect {
+  return { id: `eff-${_uuid()}`, kind: "send_email", to, text: `${subject}\n${body}`, payload: { to, subject, body } };
+}
+export function buildExternalEffect(target: string, content: string): PendingEffect {
+  return { id: `eff-${_uuid()}`, kind: "write_external", target, text: `${target}\n${content}`, payload: { target, content } };
 }
 
 export class Txn {
@@ -42,16 +52,16 @@ export class Txn {
 
   sendEmail(to: string[], subject: string, body: string): string {
     this.assertOpen();
-    const id = `eff-${randomUUID()}`;
-    this.effects.push({ id, kind: "send_email", to, text: `${subject}\n${body}`, payload: { to, subject, body } });
-    return id;
+    const e = buildEmailEffect(to, subject, body);
+    this.effects.push(e);
+    return e.id;
   }
 
   writeExternal(target: string, content: string): string {
     this.assertOpen();
-    const id = `eff-${randomUUID()}`;
-    this.effects.push({ id, kind: "write_external", target, text: `${target}\n${content}`, payload: { target, content } });
-    return id;
+    const e = buildExternalEffect(target, content);
+    this.effects.push(e);
+    return e.id;
   }
 }
 
@@ -87,23 +97,70 @@ export class TransactionManager {
   commit(sessionId: string): CommitResult {
     const t = this.txns.get(sessionId);
     if (!t || t.state !== "open") throw new Error(`no open transaction for ${sessionId}`);
-    const violations = verifyEffects(this.getPolicy(), t.effects);
+    const policy = this.getPolicy();
+    const violations = [...verifyEffects(policy, t.effects), ...fingerprintSession(policy, t.effects)];
     if (violations.length) {
       this.abort(sessionId);
       return { ok: false, state: "aborted", violations, filesCommitted: [], effectsReleased: [] };
     }
-    // Effects go to the outbox first (tmp + rename per file), then files are applied
-    mkdirSync(this.outboxDir, { recursive: true });
-    const committedAt = new Date().toISOString();
-    for (const e of t.effects) {
-      const rec = { id: e.id, sessionId, kind: e.kind, payload: e.payload, status: "committed", committedAt };
-      const tmp = join(this.outboxDir, `.${e.id}.tmp`);
-      writeFileSync(tmp, JSON.stringify(rec));
-      renameSync(tmp, join(this.outboxDir, `${e.id}.json`));
-    }
+    // Effects go to the outbox first, then files are applied
+    for (const e of t.effects) this.writeOutbox(sessionId, e);
     const filesCommitted = t.fs.commit();
     t.state = "committed";
     return { ok: true, state: "committed", violations: [], filesCommitted, effectsReleased: t.effects.map((e) => e.id) };
+  }
+
+  /** One outbox record (tmp + rename), the same format in both modes. */
+  private writeOutbox(sessionId: string, e: PendingEffect): void {
+    mkdirSync(this.outboxDir, { recursive: true });
+    const rec = { id: e.id, sessionId, kind: e.kind, payload: e.payload, status: "committed", committedAt: new Date().toISOString() };
+    const tmp = join(this.outboxDir, `.${e.id}.tmp`);
+    writeFileSync(tmp, JSON.stringify(rec));
+    renameSync(tmp, join(this.outboxDir, `${e.id}.json`));
+  }
+
+  /**
+   * Baseline arm: check this one effect alone and release it right away if clean.
+   * No session context and no commit gate. This is the comparison point for Escrow.
+   */
+  releaseNow(sessionId: string, e: PendingEffect): Violation[] {
+    const v = verifyEffects(this.getPolicy(), [e]);
+    if (!v.length) this.writeOutbox(sessionId, e);
+    return v;
+  }
+
+  /**
+   * Async commit: deterministic tiers first (exact/canary/fingerprint); only if they pass does the
+   * optional judge run. Any judge error blocks (fail closed). All-or-nothing, like commit().
+   */
+  async commitWithJudge(sessionId: string, judge?: (policy: Policy, effects: OutboundEffect[]) => Promise<Violation[]>): Promise<CommitResult & { judged: boolean }> {
+    const t = this.txns.get(sessionId);
+    if (!t || t.state !== "open") throw new Error(`no open transaction for ${sessionId}`);
+    const policy = this.getPolicy();
+    const deterministic = [...verifyEffects(policy, t.effects), ...fingerprintSession(policy, t.effects)];
+    if (deterministic.length) {
+      this.abort(sessionId);
+      return { ok: false, state: "aborted", violations: deterministic, filesCommitted: [], effectsReleased: [], judged: false };
+    }
+    let judged = false;
+    if (judge && t.effects.length) {
+      let jv: Violation[];
+      try {
+        jv = await judge(policy, t.effects);
+        judged = true;
+      } catch (e) {
+        this.abort(sessionId);
+        throw new JudgeUnavailableError((e as Error).message);
+      }
+      if (jv.length) {
+        this.abort(sessionId);
+        return { ok: false, state: "aborted", violations: jv, filesCommitted: [], effectsReleased: [], judged: true };
+      }
+    }
+    for (const e of t.effects) this.writeOutbox(sessionId, e);
+    const filesCommitted = t.fs.commit();
+    t.state = "committed";
+    return { ok: true, state: "committed", violations: [], filesCommitted, effectsReleased: t.effects.map((e) => e.id), judged };
   }
 
   abort(sessionId: string): void {

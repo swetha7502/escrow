@@ -7,7 +7,7 @@ try {
   console.log(JSON.stringify({ outcome: "live", content: r.content.trim(), usage: r.usage }));
 } catch (e) {
   if (e instanceof CachedModeError) {
-    console.log(JSON.stringify({ outcome: "cached_mode", http: 402, reasonCode: e.reasonCode, message: e.message }));
+    console.log(JSON.stringify({ outcome: "cached_mode", http: e.status, reasonCode: e.reasonCode, message: e.message }));
     process.exit(3);
   }
   throw e;

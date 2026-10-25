@@ -11,7 +11,8 @@ export type ChatMessage = { role: "system" | "user" | "assistant"; content: stri
 
 export class CachedModeError extends Error {
   reasonCode: string;
-  constructor(reasonCode: string, msg: string) { super(msg); this.reasonCode = reasonCode; }
+  status: number;
+  constructor(reasonCode: string, msg: string, status: number) { super(msg); this.reasonCode = reasonCode; this.status = status; }
 }
 
 export interface ChatResult { content: string; usage?: { prompt_tokens: number; completion_tokens: number } }
@@ -33,9 +34,10 @@ export async function chat(opts: {
     headers: { "content-type": "application/json", authorization: `Bearer ${token}`, ...(opts.runId ? { "x-escrow-run": opts.runId } : {}) },
     body: JSON.stringify({ model, messages: opts.messages, max_tokens: opts.maxTokens ?? 2048, temperature: opts.temperature ?? 0 }),
   });
-  if (r.status === 402) {
+  // Cached mode: 402, or 429/503 carrying the proxy's x-escrow-mode marker
+  if (r.status === 402 || r.headers.get("x-escrow-mode") === "cached") {
     const j = (await r.json().catch(() => ({}))) as { error?: { reason_code?: string; message?: string } };
-    throw new CachedModeError(j.error?.reason_code ?? "unknown", j.error?.message ?? "spend guard stopped");
+    throw new CachedModeError(j.error?.reason_code ?? "unknown", j.error?.message ?? "spend guard stopped", r.status);
   }
   if (!r.ok) throw new Error(`proxy ${r.status}: ${(await r.text()).slice(0, 300)}`);
   const j = (await r.json()) as { choices: { message: { content: string | null } }[]; usage?: ChatResult["usage"] };

@@ -5,10 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TransactionManager } from "./txn.ts";
 import { ShadowFS, PathEscapeError } from "./shadow-fs.ts";
-import { verifyEffects, norm, approxSubstringDistance } from "./verify.ts";
+import { verifyEffects, fingerprintSession, extractRecordFacts, norm, approxSubstringDistance } from "./verify.ts";
 import { POLICY, RECORDS } from "./fixtures/records.ts";
 
 const [avery, jordan] = RECORDS;
+void jordan;
 
 function setup() {
   const dir = mkdtempSync(join(tmpdir(), "escrow-"));
@@ -206,4 +207,53 @@ test("tier 2: a typo'd or partially redacted canary is caught; unrelated text is
   // false-positive guard: realistic TA email text with no canary
   const clean = "Hi Sam, your regrade for problem 3 on the midterm was approved; your new score is posted in the gradebook. Office hours are Tue 2-4pm in Westgate W135. Best, TA Rivera";
   assert.deepEqual(verifyEffects(POLICY, [{ id: "e", kind: "send_email", to: ["sam.okafor@student.example.edu"], text: clean }]), []);
+});
+
+test("baseline arm: releaseNow sends a clean effect immediately and blocks a leaking one, per call", () => {
+  const t = setup();
+  const clean = t.tm.begin("b1"); // begin just to reuse manager; baseline doesn't use the txn
+  void clean;
+  const ok = t.tm.releaseNow("b1", { id: "b-ok", kind: "send_email", to: [avery.email], text: `your id ${avery.studentId}`, payload: {} });
+  assert.deepEqual(ok, []);
+  assert.equal(t.outbox().length, 1);
+  const bad = t.tm.releaseNow("b1", { id: "b-bad", kind: "send_email", to: [jordan.email], text: `avery ${avery.canary}`, payload: {} });
+  assert.ok(bad.some((v) => v.rule === "R0-canary"));
+  assert.equal(t.outbox().length, 1); // the leaking one was NOT written
+  t.cleanup();
+});
+
+test("R4 fingerprint: a score split across two effects in one session is caught at commit", () => {
+  const t = setup();
+  const tx = t.tm.begin("fp1");
+  // Neither effect alone contains an exact record value; together they reveal Avery's identity + score.
+  tx.sendEmail(["outsider@gmail.example"], "re: your question", "You asked about Avery Quill in CMPSC 465.");
+  tx.sendEmail(["outsider@gmail.example"], "the number", "The midterm figure you wanted is 61/100.");
+  const r = t.tm.commit("fp1");
+  assert.equal(r.ok, false);
+  assert.ok(r.violations.some((v) => v.rule === "R4-fingerprint" && v.studentId === avery.studentId), JSON.stringify(r.violations));
+  assert.equal(t.outbox().length, 0);
+  t.cleanup();
+});
+
+test("R4 fingerprint: an accommodation code alone (no full field) leaks; bare name or bare score does not", () => {
+  // unique id leaks on its own
+  let v = fingerprintSession(POLICY, [{ id: "e", kind: "write_external", target: "https://x.example", text: "ref ODS-4471 pending" }]);
+  assert.ok(v.some((x) => x.rule === "R4-fingerprint" && x.studentId === avery.studentId));
+  // bare name, no sensitive value -> no fingerprint
+  assert.deepEqual(fingerprintSession(POLICY, [{ id: "e", kind: "send_email", to: ["outsider@x.example"], text: "Avery is in the class." }]), []);
+  // bare score, no identity -> no fingerprint
+  assert.deepEqual(fingerprintSession(POLICY, [{ id: "e", kind: "send_email", to: ["outsider@x.example"], text: "The average was 61/100." }]), []);
+});
+
+test("R4 fingerprint: facts going only to the student themself are allowed (R1)", () => {
+  const v = fingerprintSession(POLICY, [{ id: "e", kind: "send_email", to: [avery.email], text: "Avery, your midterm is 61/100." }]);
+  assert.deepEqual(v, []);
+});
+
+test("extractRecordFacts pulls identity, unique, and value facts", () => {
+  const f = extractRecordFacts(avery);
+  const kinds = new Set(f.map((x) => x.kind));
+  assert.ok(kinds.has("identity") && kinds.has("unique") && kinds.has("value"));
+  assert.ok(f.some((x) => x.value === "ODS-4471"));
+  assert.ok(f.some((x) => x.value === "61/100"));
 });

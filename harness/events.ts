@@ -56,7 +56,7 @@ export function fromAudit(e: Record<string, unknown>): EventBody[] {
     case "enqueue": return [{ ...base, type: "effect_queued", effectId: e.id, kind: e.kind, to: e.to, target: e.target }];
     case "baseline_released":
     case "baseline_blocked": return [{ ...base, type: "baseline_release", effectId: e.id, kind: e.kind, to: e.to, target: e.target, released: e.event === "baseline_released", violations: e.violations }];
-    case "verify_tier": return [{ ...base, type: "tier_verdict", tier: e.tier, ok: e.ok, ms: e.ms, violations: e.violations, skipped: e.skipped, error: e.error }];
+    case "verify_tier": return [{ ...base, type: "tier_verdict", tier: e.tier, ok: e.ok, ms: e.ms, violations: e.violations, skipped: e.skipped, error: e.error, ...(e.derived ? { derived: true } : {}) }];
     case "judge_call": return [{ ...base, type: "judge_call", model: e.model, ms: e.ms, promptTokens: e.promptTokens, completionTokens: e.completionTokens, usd: costOf(String(e.model), Number(e.promptTokens ?? 0), Number(e.completionTokens ?? 0)), leak: e.leak, vote: e.vote, error: e.error }];
     case "commit":
     case "commit_blocked": return [{ ...base, type: "commit", ok: e.event === "commit", judged: e.judged, effects: e.effects, files: e.files, violations: e.violations }];
@@ -126,4 +126,31 @@ export class FileTail {
     }, intervalMs);
   }
   stop() { clearInterval(this.timer); }
+}
+
+const TIERS = ["C1-contract", "R0-R3-exact-canary", "R4-fingerprint", "R5-super-judge"] as const;
+const TIER_OF_RULE: Record<string, (typeof TIERS)[number]> = {
+  "C1-contract": "C1-contract", "R0-canary": "R0-R3-exact-canary", "R0-canary-fuzzy": "R0-R3-exact-canary",
+  "R3-unauthorized-recipient": "R0-R3-exact-canary", "R4-fingerprint": "R4-fingerprint", "R5-super-judge": "R5-super-judge",
+};
+
+/**
+ * Transcripts recorded before the plugin logged per-tier verdicts carry only the commit record. Rebuild the tier
+ * verdicts from it (which rules fired, whether the judge ran) for replay, marked `derived: true` and with no timing.
+ * Every deterministic tier always runs; the judge runs only if they all pass.
+ */
+export function deriveTierVerdicts(audit: Record<string, unknown>[]): Record<string, unknown>[] {
+  if (audit.some((e) => e.event === "verify_tier")) return [];
+  return audit.filter((e) => e.event === "commit" || e.event === "commit_blocked").flatMap((c) => {
+    const violations = (c.violations as { rule: string }[] | undefined) ?? [];
+    const failed = new Set(violations.map((v) => TIER_OF_RULE[v.rule]));
+    const deterministicFailed = [...failed].some((t) => t !== "R5-super-judge");
+    return TIERS.map((tier) => ({
+      // 1 ms before the commit so replays show the verdicts ahead of it
+      ts: typeof c.ts === "string" ? new Date(Date.parse(c.ts) - 1).toISOString() : c.ts, session: c.session, event: "verify_tier", tier, derived: true, ms: null,
+      ok: !failed.has(tier),
+      violations: violations.filter((v) => TIER_OF_RULE[v.rule] === tier),
+      ...(tier === "R5-super-judge" && !c.judged ? { skipped: deterministicFailed ? "a deterministic tier already blocked" : "judge did not run" } : {}),
+    }));
+  });
 }

@@ -177,6 +177,7 @@ export function createProxy(cfg: ProxyConfig): Server {
       const ac = new AbortController();
       res.on("close", () => { if (!res.writableEnded) ac.abort(); });
       let upstream: Response;
+      const t0 = Date.now();
       try {
         upstream = await doFetch(`${cfg.upstreamBase}/chat/completions`, {
           method: "POST",
@@ -198,7 +199,7 @@ export function createProxy(cfg: ProxyConfig): Server {
         // A 4xx without usage was rejected before inference. Anything else without usage is charged the worst case.
         const charge = usage ?? (upstream.status >= 400 && upstream.status < 500 ? { promptTokens: 0, completionTokens: 0 } : null);
         const c = cfg.guard.commit(r, charge);
-        log({ event: "call", model, runId: r.runId, status: upstream.status, usage, usd: c.usd, totalUsd: c.totalUsd });
+        log({ event: "call", model, runId: r.runId, status: upstream.status, usage, usd: c.usd, totalUsd: c.totalUsd, ms: Date.now() - t0 });
         res.writeHead(upstream.status, { "content-type": upstream.headers.get("content-type") ?? "application/json" });
         return res.end(text);
       }
@@ -224,7 +225,7 @@ export function createProxy(cfg: ProxyConfig): Server {
         }
       } catch { /* client gone or upstream cut. Usage may be unknown, so the reservation is charged */ }
       const c = cfg.guard.commit(r, usage);
-      log({ event: "call", model, runId: r.runId, status: upstream.status, stream: true, usage, usd: c.usd, totalUsd: c.totalUsd });
+      log({ event: "call", model, runId: r.runId, status: upstream.status, stream: true, usage, usd: c.usd, totalUsd: c.totalUsd, ms: Date.now() - t0 });
       res.end();
     } catch (e) {
       const status = (e as { status?: number }).status ?? 500;

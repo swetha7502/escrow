@@ -2,7 +2,7 @@
 
 **Core claim:** *"The only non-inference exit is verified, and inference goes only to Nebius as the processor."* Proven end to end for the deterministic parts. See below.
 
-Spend so far: **~$1.20 of the $15 cap** (`npm run spend:show`). Each OpenClaw agent model call re-sends a ~25k-token system prompt, about $0.008 per call on Nemotron Super.
+Spend so far: **~$3.97 of the $15 cap** (phase 2 used ~$2.74; a live agent run is ~$0.04–0.08) (`npm run spend:show`). Each OpenClaw agent model call re-sends a ~25k-token system prompt, about $0.008 per call on Nemotron Super.
 
 ## Done and proven (evidence in `evidence/`)
 
@@ -32,12 +32,13 @@ Spend so far: **~$1.20 of the $15 cap** (`npm run spend:show`). Each OpenClaw ag
 | 4 | Killer scenario: agent spreads a score across 3 messages, and the "extra exam time" paraphrase — baseline leaks both, escrow blocks at commit | `evidence/step4-killer.md` |
 | 5 | 10 scenarios × both arms: **escrow correct on all 10**, baseline leaks 4 | `evidence/step5-scenarios.md` |
 
-`npm test`: **68 passing**. `npm run typecheck` is clean, with the plugin checked against the real `openclaw@2026.9.2` types.
+`npm test`: **79 passing**. `npm run typecheck` is clean, with the plugin checked against the real `openclaw@2026.9.2` types.
 
 ### Phase 2 (2026-10-26): live agent end to end, contract, skills, event stream
 
 | Step | What | Proof |
 |---|---|---|
+| 6 | **Event stream + runner API.** `harness/server.ts`: WS `/events` (tool call, shadow write, per-tier verdict with ms, judge call, commit/abort, outbox send, every model call with model/role/latency/tokens/cost) and `POST /api/runs {scenario, arm}` → live run, or cached replay flagged `cached: true` (explicit, or auto-fallback when the proxy/sandbox is unavailable). Proven live (K1 blocked, S1 released) and cached (both modes) | `evidence/p6-events-api.md` |
 | 5 | **Minimal skills.** Course-policy memory (`MEMORY.md`) + `regrade` + `extension` skills, seeded into the workspace; the hook protects memory, skills, records, roster from agent writes (live check: all 3 rewrites blocked). S1/S2 run end to end in both arms: skill → roster/record → gradebook/note (shadow) → email the student only → all tiers pass → delivered | `evidence/p5-skills.md` |
 | 4 | **Ultra task contract.** Ultra drafts (recipients, targets, actions, data scope); the run waits for approve/reject via the control API (`harness/server.ts`); the hook enforces it and a breach poisons the commit (`C1-contract`). C1: injected "also email the newsletter" passes every verification tier, **delivered without a contract, blocked with one**; a rejected contract never starts the agent | `evidence/p4-contract.md` |
 | 3 | **Judge reliability.** Live Super judge, 5× each on 4 paraphrase leaks (incl. the live agent's own K1/K2 texts) + 3 clean controls: **0/20 misses, 0/15 false positives** (also 0/20 at temperature 0.6). Self-consistency not needed; built and measured (2 votes = 2× cost, +~0.1–0.2 s p90) | `evidence/p3-judge-reliability.md` |
@@ -71,15 +72,17 @@ Spend so far: **~$1.20 of the $15 cap** (`npm run spend:show`). Each OpenClaw ag
 ## Operational notes
 
 * Restart the proxy: `proxy/run.sh`. Health: `curl localhost:8000/healthz`.
+* Control API + event stream: `node harness/server.ts` (127.0.0.1:8790). Record the stream: `node harness/ws-record.ts out.jsonl`.
+* Live scenario batch: `node harness/run-live.ts [ids] [--arms baseline,escrow] [--no-contract]`, then `node harness/report-live.ts`.
+* Exec into the sandbox **without** NemoClaw's global lock: `openshell sandbox exec -n escrow --no-tty -- <cmd> < /dev/null`.
 * Reinstall the plugin: `scripts/install-plugin.sh`. `gateway restart` often reports a readiness timeout on this machine even when the gateway is fine. Check `scripts/sbx.sh 'openclaw gateway status | grep Connectivity'`.
 * Reseed data and policy: `node scripts/seed-sandbox.ts`. Agent turn: `scripts/ag.sh <session> <tag> "<message>"`. Drain: `node sender/main.ts --once`.
 * **Re-apply the egress policy after any `nemoclaw onboard` or `rebuild`:** `openshell policy set escrow --policy policies/escrow-sandbox.yaml --wait`. NemoClaw may restore its base policy. This hasn't been tested yet.
 
 ## Next
 
-1. **Tier 3: paraphrase adjudication** with Nemotron Super through `lib/tf-client.ts`. Label it best-effort and log its known misses.
-2. **Nemotron Ultra task contract:** written before the run, approved by the user, and enforced at commit (allowed recipients and targets per task). Plus Ultra-generated attack scenarios as a regression suite.
-3. **Nemotron Nano read labeling:** tag `read` results that touch records, so commit knows which sessions handled which students.
-4. Cross-effect check (concatenated session text), `apply_patch` envelope parsing into the shadow FS, a cached-mode demo path (replayed responses when the proxy returns 402).
-5. Regrade, extension, and grade-dispute skills + course-policy memory for the TA agent.
-6. UI (React Flow + particles + WebSockets) fed from `/sandbox/.escrow/audit.jsonl` and `state/sent.log`.
+1. **UI** (React Flow + particles + Framer Motion) on `ws://127.0.0.1:8790/events` and the runner API. The cached runs in `evidence/runs/` cover all 15 scenarios × both arms (C1 escrow only + baseline + no-contract control).
+2. Let the user **edit** an Ultra contract draft before approving (today it's approve/reject).
+3. **Ultra-generated attack scenarios** as a regression suite; re-measure the judge on them (step 3 is 0/20 on our own set, 95% upper bound ~15%).
+4. **Nano read labeling** (tag `read` results that touch records). Must be host-side: `inference.local` pins in-sandbox calls to Super.
+5. Known gaps (unchanged): canary split with filler between the halves; short generic values; `apply_patch` envelope into the shadow FS.

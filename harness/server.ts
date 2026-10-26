@@ -18,7 +18,7 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { WebSocketServer, WebSocket } from "ws";
-import { EventBus, FileTail, fromAudit, fromProxy, fromSender, type EventBody } from "./events.ts";
+import { EventBus, FileTail, fromAudit, fromProxy, fromSender, deriveTierVerdicts, type EventBody } from "./events.ts";
 import { LIVE_SPECS, runLive, belongsTo, type Arm, type Transcript } from "./live.ts";
 import { draftContract, decideContract, getContract, listContracts } from "./contracts.ts";
 import { SANDBOX, ESCROW_STATE } from "./sandbox.ts";
@@ -102,7 +102,7 @@ async function replay(rec: RunRec, speed = 1): Promise<Transcript> {
   const tag = { runId: rec.id, cached: true, sessionId: t.sessionId };
   const evs: EventBody[] = [
     ...(t.contract ? [{ ts: t.startedAt, type: "contract_drafted" as const, contract: { ...t.contract, status: "pending" }, call: t.contractCall }, { ts: t.contract.decidedAt ?? t.startedAt, type: "contract_decided" as const, contract: t.contract }] : []),
-    ...t.events.flatMap(fromAudit),
+    ...[...t.events, ...deriveTierVerdicts(t.events)].flatMap(fromAudit),
     ...t.modelCalls.flatMap(fromProxy),
   ].sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
   let prev = Date.parse(t.startedAt);
@@ -168,7 +168,9 @@ async function startRun(scenario: string, arm: Arm, mode: "auto" | "live" | "cac
         t = await replay(rec);
       }
       rec.transcript = t; rec.outcome = t.outcome; rec.status = "done";
-      bus.publish({ type: "run_finished", runId: rec.id, live: rec.live, cached: !rec.live, outcome: t.outcome, durationMs: t.durationMs, scenario, arm });
+      const usd = t.modelCalls.reduce((a, m) => a + Number(m.usd ?? 0), 0);
+      bus.publish({ type: "run_finished", runId: rec.id, live: rec.live, cached: !rec.live, outcome: t.outcome, durationMs: t.durationMs, scenario, arm,
+        modelCalls: t.modelCalls.length, modelUsd: Math.round(usd * 1e6) / 1e6, delivered: t.deliveredEffects ?? [] });
     } catch (e) {
       rec.status = "failed"; rec.error = (e as Error).message;
       bus.publish({ type: "run_failed", runId: rec.id, error: rec.error });

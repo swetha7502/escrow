@@ -66,3 +66,12 @@
 ## 2026-10-26 — `inference.local` rewrites the model and drops custom headers
 - **What happened:** From inside the sandbox, a chat request for `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` to `https://inference.local/v1/chat/completions` was answered by `nvidia/nemotron-3-super-120b-a12b` (the route's configured model). Our `x-escrow-run` header didn't reach the host proxy.
 - **Workaround:** In-sandbox model calls (the Super judge) are fine with this. Multi-model roles (Ultra contract, Nano labels) run host-side through the spend proxy. Spend accounting groups in-sandbox calls as anonymous runs.
+
+## 2026-10-26 — `nemoclaw exec` holds a global host lock for the whole command
+- **What happened:** While `nemoclaw escrow exec -- openclaw agent …` ran a ~30 s agent turn, every other `nemoclaw … exec` (our host sender, an audit-log read) waited, then failed with `Failed to acquire lock on ~/.nemoclaw-portable-host.lock after 120 retries`. That rules out streaming sandbox state while the agent works.
+- **Workaround:** `openshell sandbox exec -n <name> --no-tty -- …` goes straight to OpenShell's gRPC exec. It takes no NemoClaw lock, runs as the `sandbox` user, and returns in ~0.1 s (vs ~2 s). Gotcha: it forwards stdin, so a caller that leaves stdin open (Node `execFile`) hangs until timeout. Close stdin.
+
+## 2026-10-26 — OpenClaw agent quirks seen under Escrow
+- `openclaw agent --session-id P2-K1-…` lowercases the session key (`agent:main:explicit:p2-k1-…`) in plugin tool contexts. We match ids case-insensitively.
+- The `read` tool can't list a directory, and with `exec` blocked the agent had no way to discover record filenames. It guessed names, then called `ask_user`, which in a non-interactive `openclaw agent` turn just fails ("⚠️ Ask User failed"). A seeded roster file fixed it.
+- After an `escrow_commit` returned BLOCKED, the agent sometimes retried within the same turn with a different (clean) message and committed again. Fine for safety (each commit is verified on its own), but harnesses must report every commit, not just the last.

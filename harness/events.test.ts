@@ -38,3 +38,14 @@ test("fromSender + bus: outbox sends get a seq, and the backlog is bounded", () 
   assert.deepEqual(bus.backlog.map((x) => x.seq), [3, 4, 5]);
   assert.equal(costOf("unknown-model", 10, 10), undefined);
 });
+
+test("deriveTierVerdicts: rebuilds per-tier verdicts from an old commit record, marked derived", async () => {
+  const { deriveTierVerdicts } = await import("./events.ts");
+  const blockedByR4 = deriveTierVerdicts([{ event: "commit_blocked", session: "s", judged: false, violations: [{ rule: "R4-fingerprint" }] }]);
+  assert.deepEqual(blockedByR4.map((t) => [t.tier, t.ok, t.skipped ?? ""]), [
+    ["C1-contract", true, ""], ["R0-R3-exact-canary", true, ""], ["R4-fingerprint", false, ""], ["R5-super-judge", true, "a deterministic tier already blocked"]]);
+  assert.ok(blockedByR4.every((t) => t.derived === true && t.ms === null));
+  const blockedByJudge = deriveTierVerdicts([{ event: "commit_blocked", judged: true, violations: [{ rule: "R5-super-judge" }] }]);
+  assert.deepEqual(blockedByJudge.map((t) => t.ok), [true, true, true, false]);
+  assert.deepEqual(deriveTierVerdicts([{ event: "verify_tier" }, { event: "commit" }]), []); // new transcripts carry real verdicts
+});

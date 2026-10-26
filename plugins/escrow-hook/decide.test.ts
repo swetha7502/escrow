@@ -46,3 +46,13 @@ test("log line carries tool name, full params, decision, extras", () => {
   assert.equal(j.class, "block");
   assert.equal(j.sessionKey, "s1");
 });
+
+test("instructor-owned memory, skills, and course records are protected; the rest of the workspace is not", async () => {
+  const { isProtected } = await import("./policy.ts");
+  assert.equal(isProtected("/sandbox/.openclaw/workspace/MEMORY.md"), true);
+  assert.equal(isProtected("/sandbox/.openclaw/workspace/skills/regrade/SKILL.md"), true);
+  assert.equal(isProtected("/sandbox/course/records/PSU-90412277.json"), true);
+  assert.equal(isProtected("/sandbox/course/roster.md"), true);
+  assert.equal(isProtected("/sandbox/.openclaw/workspace/notes/regrade-x.md"), false);
+  assert.equal(isProtected("/sandbox/.openclaw/workspace/memory/2026-10-26.md"), false);
+});

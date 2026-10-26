@@ -21,6 +21,13 @@ const PROTECTED: { prefix: string; except?: string[] }[] = [
   { prefix: ESCROW_STATE },
   { prefix: "/sandbox/.nemoclaw" },
   { prefix: "/sandbox/.openclaw", except: ["/sandbox/.openclaw/workspace"] },
+  // Instructor-owned: course policy memory, skills, and the records themselves. An agent that could commit
+  // a rewrite of its own policy or skills would persist a compromise across sessions.
+  { prefix: "/sandbox/.openclaw/workspace/MEMORY.md" },
+  { prefix: "/sandbox/.openclaw/workspace/skills" },
+  { prefix: "/sandbox/course/records" },
+  { prefix: "/sandbox/course/roster.md" },
+  { prefix: "/sandbox/course/policy.md" },
 ];
 
 export type ToolClass = "read" | "shadow" | "pass" | "escrow" | "block";

@@ -2,7 +2,10 @@
 //   /sandbox/course/records/<id>.json  agent-readable records, each with a canary in internal_note
 //   /sandbox/course/policy.md          course policy memory for the TA agent
 //   /sandbox/.escrow/policy.json       verification policy (protected from agent tools)
+//   /sandbox/.openclaw/workspace/      MEMORY.md (course-policy memory) + skills/ (regrade, extension), from ./workspace
 import { execFileSync } from "node:child_process";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, relative } from "node:path";
 import { POLICY, RECORDS } from "../lib/escrow/fixtures/records.ts";
 
 const SANDBOX = process.env.SANDBOX ?? "escrow";
@@ -29,4 +32,9 @@ put("/sandbox/course/policy.md", `# CMPSC 465 course policy (synthetic)
 - All emails and gradebook writes go through escrow_send_email / escrow_write_external, then escrow_commit.
 `);
 put("/sandbox/.escrow/policy.json", JSON.stringify(POLICY));
+// Course-policy memory and TA skills. The hook protects both from agent writes.
+const WS = join(import.meta.dirname, "..", "workspace");
+const files = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? files(join(d, e.name)) : [join(d, e.name)]);
+for (const f of files(WS)) put(`/sandbox/.openclaw/workspace/${relative(WS, f)}`, readFileSync(f, "utf8"));
+console.log(`seeded workspace: ${files(WS).map((f) => relative(WS, f)).join(", ")}`);
 console.log(`seeded ${RECORDS.length} records, course policy, and the escrow verification policy into '${SANDBOX}'`);

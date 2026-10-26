@@ -1,4 +1,4 @@
-# Escrow: status (2026-10-25)
+# Escrow: status (2026-10-26)
 
 **Core claim:** *"The only non-inference exit is verified, and inference goes only to Nebius as the processor."* Proven end to end for the deterministic parts. See below.
 
@@ -34,24 +34,13 @@ Spend so far: **~$1.20 of the $15 cap** (`npm run spend:show`). Each OpenClaw ag
 
 `npm test`: **68 passing**. `npm run typecheck` is clean, with the plugin checked against the real `openclaw@2026.9.2` types.
 
-### ⚠️ Live sandbox is DOWN (needs your attention)
+### Phase 2 (2026-10-26): live agent end to end, contract, skills, event stream
 
-Testing 0b (does rebuild reset egress?) required a `nemoclaw escrow rebuild`. On this WSL2 + Docker Desktop box (7.6 GiB; NemoClaw wants ≥ 8), the rebuild's backup phase failed and left the sandbox in **Error** phase. No non-destructive recovery worked (`recover`, `doctor --fix`, stop/start, gateway-service restart, container restart). A fresh `onboard --fresh --recreate-sandbox` (with `NEMOCLAW_RECREATE_WITHOUT_BACKUP=1`) rebuilt the image and reached **Ready**, but the OpenClaw gateway main-process **crashes on start** (exit 1) and NemoClaw's managed startup "does not settle" — the same symptom M1 hit, made permanent here. Root causes are all environmental: Docker Desktop's `docker info` takes ~1.4–2.5 s and trips NemoClaw's 5 s preflight timeout; the box is under-provisioned.
+| Step | What | Proof |
+|---|---|---|
+| 1 | **Live sandbox restored.** Root cause of the 10-25 outage was a poisoned NemoClaw state volume (`openclaw.json` owned by uid 1000, mode 600), not memory. destroy → onboard --fresh → onboard --resume → `up.sh`. Egress re-verified: example.com, DNS, direct Token Factory, raw TCP/UDP all fail; inference.local works | `evidence/p1-restore.md` |
 
-**What this means:** steps 4–5 were proven against the **real verification pipeline with the live Super judge** (the new logic), but the OpenClaw **agent layer was not re-exercised** this phase. That layer was proven live in M2/M5/M6/M7/M8 (agent calls tools → hook intercepts → commit blocks), all committed with evidence.
-
-**To restore the live agent:** raise Docker Desktop to ≥ 4 CPU / ≥ 8 GiB (Settings → Resources), then:
-```
-scripts/up.sh                       # proxy, policy, dashboard, backoff reset
-# if the sandbox won't leave Error: onboard fresh (destroys workspace; re-seeded by scripts)
-for p in $(pgrep -f "forward service escrow"); do kill $p; done   # free 18789 first
-NEMOCLAW_RECREATE_WITHOUT_BACKUP=1 COMPATIBLE_API_KEY=$(grep PROXY_TOKEN .env|cut -d= -f2-|tr -d "\r ") \
-  NEMOCLAW_NON_INTERACTIVE=1 NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1 NEMOCLAW_PROVIDER=custom \
-  NEMOCLAW_ENDPOINT_URL=http://localhost:8000/v1 NEMOCLAW_MODEL=nvidia/nemotron-3-super-120b-a12b \
-  NEMOCLAW_POLICY_TIER=restricted nemoclaw onboard --fresh --recreate-sandbox --non-interactive --name escrow
-scripts/up.sh                       # re-lock egress, install plugin, seed data
-```
-If the gateway still won't settle, the box needs more resources or a clean `nemoclaw uninstall` + reinstall.
+**Never run `nemoclaw rebuild` before the deadline.** Recovery recipe if the sandbox wedges: `evidence/p1-restore.md`.
 
 ## Guarantees (honest)
 

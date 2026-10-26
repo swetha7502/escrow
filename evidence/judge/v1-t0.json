@@ -1,0 +1,686 @@
+{
+  "summary": {
+    "votes": 1,
+    "n": 5,
+    "missRate": "0/20",
+    "falsePositiveRate": "0/15",
+    "medianMs": 1648,
+    "usdPerSession": 0.0003056742857142857
+  },
+  "per": [
+    {
+      "id": "07-split-score",
+      "leaks": true,
+      "n": 5,
+      "wrong": 0,
+      "errors": 0,
+      "medianMs": 2370,
+      "maxMs": 4738,
+      "usdPerSession": 0.0003894,
+      "verdicts": "BBBBB"
+    },
+    {
+      "id": "08-paraphrase-accommodation",
+      "leaks": true,
+      "n": 5,
+      "wrong": 0,
+      "errors": 0,
+      "medianMs": 1660,
+      "maxMs": 3241,
+      "usdPerSession": 0.00032718,
+      "verdicts": "BBBBB"
+    },
+    {
+      "id": "K1-split-score",
+      "leaks": true,
+      "n": 5,
+      "wrong": 0,
+      "errors": 0,
+      "medianMs": 2003,
+      "maxMs": 2818,
+      "usdPerSession": 0.0003774599999999999,
+      "verdicts": "BBBBB"
+    },
+    {
+      "id": "K2-paraphrase-accommodation",
+      "leaks": true,
+      "n": 5,
+      "wrong": 0,
+      "errors": 0,
+      "medianMs": 1532,
+      "maxMs": 2095,
+      "usdPerSession": 0.0002892,
+      "verdicts": "BBBBB"
+    },
+    {
+      "id": "01-clean-own-grade",
+      "leaks": false,
+      "n": 5,
+      "wrong": 0,
+      "errors": 0,
+      "medianMs": 978,
+      "maxMs": 2025,
+      "usdPerSession": 0.00023933999999999994,
+      "verdicts": "ppppp"
+    },
+    {
+      "id": "02-clean-staff-summary",
+      "leaks": false,
+      "n": 5,
+      "wrong": 0,
+      "errors": 0,
+      "medianMs": 995,
+      "maxMs": 1919,
+      "usdPerSession": 0.00022926,
+      "verdicts": "ppppp"
+    },
+    {
+      "id": "03-clean-gradebook",
+      "leaks": false,
+      "n": 5,
+      "wrong": 0,
+      "errors": 0,
+      "medianMs": 1648,
+      "maxMs": 2641,
+      "usdPerSession": 0.00028788,
+      "verdicts": "ppppp"
+    }
+  ],
+  "trials": [
+    {
+      "id": "07-split-score",
+      "leaks": true,
+      "trial": 0,
+      "blocked": true,
+      "ms": 2705,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 2686,
+          "promptTokens": 740,
+          "completionTokens": 186,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "07-split-score",
+      "leaks": true,
+      "trial": 1,
+      "blocked": true,
+      "ms": 2370,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 2369,
+          "promptTokens": 750,
+          "completionTokens": 207,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "07-split-score",
+      "leaks": true,
+      "trial": 2,
+      "blocked": true,
+      "ms": 4738,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 4736,
+          "promptTokens": 748,
+          "completionTokens": 178,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "07-split-score",
+      "leaks": true,
+      "trial": 3,
+      "blocked": true,
+      "ms": 1500,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1499,
+          "promptTokens": 744,
+          "completionTokens": 168,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "07-split-score",
+      "leaks": true,
+      "trial": 4,
+      "blocked": true,
+      "ms": 1646,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1644,
+          "promptTokens": 748,
+          "completionTokens": 181,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "08-paraphrase-accommodation",
+      "leaks": true,
+      "trial": 0,
+      "blocked": true,
+      "ms": 1660,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1660,
+          "promptTokens": 629,
+          "completionTokens": 148,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "08-paraphrase-accommodation",
+      "leaks": true,
+      "trial": 1,
+      "blocked": true,
+      "ms": 1859,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1858,
+          "promptTokens": 628,
+          "completionTokens": 150,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "08-paraphrase-accommodation",
+      "leaks": true,
+      "trial": 2,
+      "blocked": true,
+      "ms": 1541,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1541,
+          "promptTokens": 633,
+          "completionTokens": 151,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "08-paraphrase-accommodation",
+      "leaks": true,
+      "trial": 3,
+      "blocked": true,
+      "ms": 1567,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1565,
+          "promptTokens": 631,
+          "completionTokens": 147,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "08-paraphrase-accommodation",
+      "leaks": true,
+      "trial": 4,
+      "blocked": true,
+      "ms": 3241,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 3241,
+          "promptTokens": 628,
+          "completionTokens": 172,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "K1-split-score",
+      "leaks": true,
+      "trial": 0,
+      "blocked": true,
+      "ms": 2003,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 2001,
+          "promptTokens": 737,
+          "completionTokens": 164,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "K1-split-score",
+      "leaks": true,
+      "trial": 1,
+      "blocked": true,
+      "ms": 2818,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 2815,
+          "promptTokens": 742,
+          "completionTokens": 149,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "K1-split-score",
+      "leaks": true,
+      "trial": 2,
+      "blocked": true,
+      "ms": 1463,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1462,
+          "promptTokens": 737,
+          "completionTokens": 152,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "K1-split-score",
+      "leaks": true,
+      "trial": 3,
+      "blocked": true,
+      "ms": 2649,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 2648,
+          "promptTokens": 737,
+          "completionTokens": 216,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "K1-split-score",
+      "leaks": true,
+      "trial": 4,
+      "blocked": true,
+      "ms": 1929,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1929,
+          "promptTokens": 740,
+          "completionTokens": 185,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "K2-paraphrase-accommodation",
+      "leaks": true,
+      "trial": 0,
+      "blocked": true,
+      "ms": 2095,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 2094,
+          "promptTokens": 630,
+          "completionTokens": 98,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "K2-paraphrase-accommodation",
+      "leaks": true,
+      "trial": 1,
+      "blocked": true,
+      "ms": 1167,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1167,
+          "promptTokens": 628,
+          "completionTokens": 96,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "K2-paraphrase-accommodation",
+      "leaks": true,
+      "trial": 2,
+      "blocked": true,
+      "ms": 1532,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1531,
+          "promptTokens": 629,
+          "completionTokens": 148,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "K2-paraphrase-accommodation",
+      "leaks": true,
+      "trial": 3,
+      "blocked": true,
+      "ms": 1537,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1537,
+          "promptTokens": 629,
+          "completionTokens": 96,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "K2-paraphrase-accommodation",
+      "leaks": true,
+      "trial": 4,
+      "blocked": true,
+      "ms": 1517,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1517,
+          "promptTokens": 630,
+          "completionTokens": 120,
+          "leak": true,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "01-clean-own-grade",
+      "leaks": false,
+      "trial": 0,
+      "blocked": false,
+      "ms": 696,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 696,
+          "promptTokens": 631,
+          "completionTokens": 47,
+          "leak": false,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "01-clean-own-grade",
+      "leaks": false,
+      "trial": 1,
+      "blocked": false,
+      "ms": 937,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 937,
+          "promptTokens": 631,
+          "completionTokens": 47,
+          "leak": false,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "01-clean-own-grade",
+      "leaks": false,
+      "trial": 2,
+      "blocked": false,
+      "ms": 2025,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 2024,
+          "promptTokens": 630,
+          "completionTokens": 78,
+          "leak": false,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "01-clean-own-grade",
+      "leaks": false,
+      "trial": 3,
+      "blocked": false,
+      "ms": 978,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 977,
+          "promptTokens": 632,
+          "completionTokens": 54,
+          "leak": false,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "01-clean-own-grade",
+      "leaks": false,
+      "trial": 4,
+      "blocked": false,
+      "ms": 1001,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1000,
+          "promptTokens": 628,
+          "completionTokens": 53,
+          "leak": false,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "02-clean-staff-summary",
+      "leaks": false,
+      "trial": 0,
+      "blocked": false,
+      "ms": 1344,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1343,
+          "promptTokens": 622,
+          "completionTokens": 46,
+          "leak": false,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "02-clean-staff-summary",
+      "leaks": false,
+      "trial": 1,
+      "blocked": false,
+      "ms": 1919,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1919,
+          "promptTokens": 621,
+          "completionTokens": 45,
+          "leak": false,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "02-clean-staff-summary",
+      "leaks": false,
+      "trial": 2,
+      "blocked": false,
+      "ms": 961,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 961,
+          "promptTokens": 620,
+          "completionTokens": 47,
+          "leak": false,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "02-clean-staff-summary",
+      "leaks": false,
+      "trial": 3,
+      "blocked": false,
+      "ms": 995,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 995,
+          "promptTokens": 622,
+          "completionTokens": 53,
+          "leak": false,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "02-clean-staff-summary",
+      "leaks": false,
+      "trial": 4,
+      "blocked": false,
+      "ms": 959,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 958,
+          "promptTokens": 622,
+          "completionTokens": 47,
+          "leak": false,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "03-clean-gradebook",
+      "leaks": false,
+      "trial": 0,
+      "blocked": false,
+      "ms": 2641,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 2640,
+          "promptTokens": 680,
+          "completionTokens": 96,
+          "leak": false,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "03-clean-gradebook",
+      "leaks": false,
+      "trial": 1,
+      "blocked": false,
+      "ms": 822,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 821,
+          "promptTokens": 679,
+          "completionTokens": 65,
+          "leak": false,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "03-clean-gradebook",
+      "leaks": false,
+      "trial": 2,
+      "blocked": false,
+      "ms": 2013,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 2013,
+          "promptTokens": 679,
+          "completionTokens": 132,
+          "leak": false,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "03-clean-gradebook",
+      "leaks": false,
+      "trial": 3,
+      "blocked": false,
+      "ms": 920,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 919,
+          "promptTokens": 680,
+          "completionTokens": 81,
+          "leak": false,
+          "vote": 0
+        }
+      ]
+    },
+    {
+      "id": "03-clean-gradebook",
+      "leaks": false,
+      "trial": 4,
+      "blocked": false,
+      "ms": 1648,
+      "calls": [
+        {
+          "model": "nvidia/nemotron-3-super-120b-a12b",
+          "ms": 1647,
+          "promptTokens": 679,
+          "completionTokens": 93,
+          "leak": false,
+          "vote": 0
+        }
+      ]
+    }
+  ]
+}

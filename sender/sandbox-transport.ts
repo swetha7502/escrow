@@ -19,13 +19,17 @@ export class SandboxTransport implements OutboxTransport {
   }
 
   private async exec(args: string[]): Promise<string> {
-    // execFile with an argv array, so nothing passes through a host shell
-    const { stdout } = await run("nemoclaw", [this.sandbox, "exec", "--no-stdin", "--timeout", "60", "--", ...args], { maxBuffer: 16 * 1024 * 1024, timeout: 90_000 });
+    // execFile with an argv array, so nothing passes through a host shell. OpenShell's exec directly:
+    // `nemoclaw exec` takes a global host lock and would wait out any running agent turn.
+    const p = run("openshell", ["sandbox", "exec", "-n", this.sandbox, "--no-tty", "--timeout", "60", "--", ...args], { maxBuffer: 16 * 1024 * 1024, timeout: 90_000 });
+    p.child.stdin?.end(); // openshell forwards stdin; an open pipe hangs the command
+    const { stdout } = await p;
     return stdout;
   }
 
   async list(): Promise<string[]> {
-    const out = await this.exec(["find", this.dir, "-maxdepth", "1", "-name", "*.json", "-type", "f"]);
+    // No outbox dir yet just means nothing was ever committed
+    const out = await this.exec(["sh", "-c", '[ ! -d "$1" ] || find "$1" -maxdepth 1 -name "*.json" -type f', "list", this.dir]);
     return out.split("\n").map((l) => l.trim()).filter((l) => l.startsWith(this.dir + "/") && l.endsWith(".json"))
       .map((l) => l.slice(this.dir.length + 1, -".json".length)).filter((id) => ID_RE.test(id)).sort();
   }

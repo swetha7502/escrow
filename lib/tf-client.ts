@@ -15,7 +15,10 @@ export class CachedModeError extends Error {
   constructor(reasonCode: string, msg: string, status: number) { super(msg); this.reasonCode = reasonCode; this.status = status; }
 }
 
-export interface ChatResult { content: string; usage?: { prompt_tokens: number; completion_tokens: number } }
+export interface ChatResult { content: string; model: string; ms: number; usage?: { prompt_tokens: number; completion_tokens: number } }
+
+/** Inside the sandbox the only route out is OpenShell's managed inference endpoint; it injects the credential. */
+export const SANDBOX_INFERENCE_URL = "https://inference.local/v1";
 
 export async function chat(opts: {
   model: keyof typeof MODELS | string;
@@ -24,15 +27,19 @@ export async function chat(opts: {
   runId?: string;
   temperature?: number;
   extraBody?: Record<string, unknown>;
+  /** Override the endpoint. inference.local needs no token; the host proxy does. */
+  baseUrl?: string;
 }): Promise<ChatResult> {
   const env = loadEnv();
-  const base = (env.PROXY_URL ?? "http://127.0.0.1:8000/v1").replace(/\/+$/, "");
+  const base = (opts.baseUrl ?? env.PROXY_URL ?? "http://127.0.0.1:8000/v1").replace(/\/+$/, "");
   const token = env.PROXY_TOKEN;
-  if (!token) throw new Error("PROXY_TOKEN not set");
+  const managed = base.startsWith(SANDBOX_INFERENCE_URL);
+  if (!token && !managed) throw new Error("PROXY_TOKEN not set");
   const model = opts.model in MODELS ? MODELS[opts.model as keyof typeof MODELS] : opts.model;
+  const t0 = Date.now();
   const r = await fetch(`${base}/chat/completions`, {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${token}`, ...(opts.runId ? { "x-escrow-run": opts.runId } : {}) },
+    headers: { "content-type": "application/json", ...(managed ? {} : { authorization: `Bearer ${token}` }), ...(opts.runId ? { "x-escrow-run": opts.runId } : {}) },
     body: JSON.stringify({ model, messages: opts.messages, max_tokens: opts.maxTokens ?? 2048, temperature: opts.temperature ?? 0, ...(opts.extraBody ?? {}) }),
   });
   // Cached mode: 402, or 429/503 carrying the proxy's x-escrow-mode marker
@@ -42,5 +49,5 @@ export async function chat(opts: {
   }
   if (!r.ok) throw new Error(`proxy ${r.status}: ${(await r.text()).slice(0, 300)}`);
   const j = (await r.json()) as { choices: { message: { content: string | null } }[]; usage?: ChatResult["usage"] };
-  return { content: j.choices[0]?.message?.content ?? "", usage: j.usage };
+  return { content: j.choices[0]?.message?.content ?? "", model, ms: Date.now() - t0, usage: j.usage };
 }

@@ -38,6 +38,7 @@ Spend so far: **~$1.20 of the $15 cap** (`npm run spend:show`). Each OpenClaw ag
 
 | Step | What | Proof |
 |---|---|---|
+| 2 | **Real OpenClaw agent end to end, both arms.** 10 scripted scenarios: agent made exactly the scripted calls 20/20, and **all 20 outcomes match the pipeline-only table** (same verdict, same tier). Killer, agent-composed (agent reads records, writes the leak itself): baseline leaks both, escrow blocks both via R5 (judge now runs **inside the sandbox** via inference.local). 24 transcripts saved as the cached-run fallback | `evidence/p2-live-agent.md`, `evidence/runs/` |
 | 1 | **Live sandbox restored.** Root cause of the 10-25 outage was a poisoned NemoClaw state volume (`openclaw.json` owned by uid 1000, mode 600), not memory. destroy → onboard --fresh → onboard --resume → `up.sh`. Egress re-verified: example.com, DNS, direct Token Factory, raw TCP/UDP all fail; inference.local works | `evidence/p1-restore.md` |
 
 **Never run `nemoclaw rebuild` before the deadline.** Recovery recipe if the sandbox wedges: `evidence/p1-restore.md`.

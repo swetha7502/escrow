@@ -7,7 +7,7 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node --test --test-reporter=spec 'lib/**/*.test.ts' 'proxy/**/*.test.ts' 'plugins/**/*.test.ts' 'sender/**/*.test.ts'",
+    "test": "node --test --test-reporter=spec 'lib/**/*.test.ts' 'proxy/**/*.test.ts' 'plugins/**/*.test.ts' 'sender/**/*.test.ts' 'harness/**/*.test.ts'",
     "proxy": "node proxy/server.ts",
     "spend:init": "node proxy/cli.ts init",
     "spend:show": "node proxy/cli.ts show",
@@ -15,7 +15,11 @@
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
+    "@types/ws": "^8.18.2",
     "openclaw": "^2026.9.2",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
   }
 }

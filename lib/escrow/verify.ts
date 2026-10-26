@@ -46,7 +46,7 @@ export interface OutboundEffect {
 
 export interface Violation {
   effectId: string;
-  rule: "R0-canary" | "R0-canary-fuzzy" | "R3-unauthorized-recipient" | "R4-fingerprint" | "R5-super-judge";
+  rule: "C1-contract" | "R0-canary" | "R0-canary-fuzzy" | "R3-unauthorized-recipient" | "R4-fingerprint" | "R5-super-judge";
   studentId: string;
   field: string;
   recipient?: string;

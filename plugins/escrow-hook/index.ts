@@ -4,9 +4,11 @@ import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { TransactionManager, buildEmailEffect, buildExternalEffect, type CommitResult } from "../../lib/escrow/txn.ts";
 import { readMode, type Mode } from "../../lib/escrow/modes.ts";
 import { makeSuperJudge } from "../../lib/escrow/judge.ts";
+import { SANDBOX_INFERENCE_URL } from "../../lib/tf-client.ts";
 import { JudgeUnavailableError } from "../../lib/escrow/txn.ts";
 import type { Policy } from "../../lib/escrow/verify.ts";
 import { logLine, type ToolCallEvent, type ToolCallCtx } from "./decide.ts";
+import { contractViolation, recordIdOf, type ContractAct, type TaskContract } from "../../lib/escrow/contract.ts";
 import { classify, absPath, isProtected, inWorkspace, pathKey, WORKSPACE_ROOT, ESCROW_STATE } from "./policy.ts";
 
 const DEFAULT_BASE = "/sandbox/.openclaw/workspace";
@@ -19,7 +21,7 @@ function loadPolicy(path: string): Policy {
 
 function summarize(r: CommitResult): string {
   if (r.ok) return `COMMITTED. Released ${r.effectsReleased.length} effect(s) to the outbox and applied ${r.filesCommitted.length} file(s): ${r.filesCommitted.join(", ") || "none"}.`;
-  const v = r.violations.map((x) => `${x.rule} (${x.field} of ${x.studentId}${x.recipient ? ` → ${x.recipient}` : ""})`);
+  const v = r.violations.map((x) => x.rule === "C1-contract" ? `${x.rule} (${x.match})` : `${x.rule} (${x.field} of ${x.studentId}${x.recipient ? ` → ${x.recipient}` : ""})`);
   return `BLOCKED. Verification failed: ${v.join("; ")}. The session was aborted, and no email, external write, or file change was released.`;
 }
 
@@ -31,13 +33,20 @@ export default definePluginEntry({
   name: "Escrow Hook",
   description: "Escrow safety layer: holds every side effect in escrow until the session is verified.",
   register(api) {
-    const cfg = (api.pluginConfig ?? {}) as { stateDir?: string };
+    const cfg = (api.pluginConfig ?? {}) as { stateDir?: string; inferenceUrl?: string };
+    const inferenceUrl = cfg.inferenceUrl ?? SANDBOX_INFERENCE_URL;
     const stateDir = cfg.stateDir ?? ESCROW_STATE;
     const auditPath = join(stateDir, "audit.jsonl");
     const policyPath = join(stateDir, "policy.json");
     const modePath = join(stateDir, "mode");
     const mode = (): Mode => readMode(modePath);
     const judgeEnabled = (): boolean => { try { return readFileSync(join(stateDir, "judge"), "utf8").trim() !== "off"; } catch { return true; } };
+    // Task contracts (C1). The host writes contracts/<sessionId>.json only after the user approves.
+    // When contract-required is "on", a session with no approved contract can't act at all.
+    const contractRequired = (): boolean => { try { return readFileSync(join(stateDir, "contract-required"), "utf8").trim() === "on"; } catch { return false; } };
+    const contractFor = (sessionId: string): TaskContract | null => {
+      try { return JSON.parse(readFileSync(join(stateDir, "contracts", `${sessionId.toLowerCase().replace(/[^\w-]/g, "_")}.json`), "utf8")) as TaskContract; } catch { return null; }
+    };
     mkdirSync(stateDir, { recursive: true });
     // One manager per process. OpenClaw may call register() more than once (hot reload, registry
     // rebuilds), and open transactions must survive that. Still in-memory, no WAL.
@@ -72,7 +81,27 @@ export default definePluginEntry({
       const key = pathKey(ev.params ?? {});
       const abs = key ? resolveTool(ev.params[key], ev.params) : null;
 
-      if (cls === "block") {
+      // What this call would do, in task-contract terms
+      const p = ev.params ?? {};
+      const rid = cls === "read" && abs ? recordIdOf(abs) : null;
+      const act: ContractAct | null =
+        rid ? { kind: "read_records", studentId: rid }
+        : cls === "shadow" && abs ? { kind: "write_file", path: abs }
+        : ev.toolName === "escrow_send_email" ? { kind: "send_email", to: Array.isArray(p.to) ? p.to.map(String) : [String(p.to ?? "")] }
+        : ev.toolName === "escrow_write_external" ? { kind: "write_external", target: String(p.target ?? "") }
+        : null;
+      const plainSession = c.sessionId ?? session.split(":").pop() ?? session;
+      const contract = act ? contractFor(plainSession) : null;
+      const breach = act && (contract || contractRequired())
+        ? (contract ? contractViolation(contract, act) : "no approved task contract for this session")
+        : null;
+
+      if (breach) {
+        // Block the call AND poison the session: escrow_commit will refuse to release anything
+        tm.begin(session).violations.push({ effectId: ev.toolCallId ?? "-", rule: "C1-contract", studentId: rid ?? "", field: act!.kind, match: breach });
+        block(`outside the approved task contract: ${breach}.`);
+        note = `contract ${contract?.id ?? "none"}`;
+      } else if (cls === "block") {
         block(`tool "${ev.toolName}" is not allowed in this sandbox. Use escrow_send_email / escrow_write_external for side effects.`);
       } else if (cls === "read" && abs) {
         if (abs.startsWith(ESCROW_STATE)) block("Escrow state is not readable.");
@@ -155,7 +184,9 @@ export default definePluginEntry({
         const useJudge = judgeEnabled();
         let r: CommitResult & { judged?: boolean };
         try {
-          r = await tm.commitWithJudge(s, useJudge ? makeSuperJudge({ runId: `judge-${s}`.slice(0, 120) }) : undefined);
+          r = await tm.commitWithJudge(s,
+            useJudge ? makeSuperJudge({ runId: `judge-${s}`.slice(0, 120), baseUrl: inferenceUrl, onCall: (c) => audit({ event: "judge_call", session: s, ...c }) }) : undefined,
+            (t) => audit({ event: "verify_tier", session: s, ...t }));
         } catch (e) {
           tm.abort(s);
           const why = e instanceof JudgeUnavailableError ? `judge unavailable (${e.message})` : (e as Error).message;

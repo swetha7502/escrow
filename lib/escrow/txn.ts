@@ -15,6 +15,10 @@ export interface PendingEffect extends OutboundEffect {
   payload: Record<string, unknown>;
 }
 
+export type TierName = "C1-contract" | "R0-R3-exact-canary" | "R4-fingerprint" | "R5-super-judge";
+/** One verification tier's verdict at commit, for the audit log / event stream */
+export interface TierResult { tier: TierName; ok: boolean; ms: number; violations: Violation[]; skipped?: string; error?: string }
+
 export interface CommitResult {
   ok: boolean;
   state: TxnState;
@@ -35,6 +39,8 @@ export class Txn {
   state: TxnState = "open";
   readonly fs: ShadowFS;
   readonly effects: PendingEffect[] = [];
+  /** Violations recorded during the session (task-contract breaches). Any one blocks the commit. */
+  readonly violations: Violation[] = [];
 
   constructor(sessionId: string, fs: ShadowFS) {
     this.sessionId = sessionId;
@@ -103,7 +109,7 @@ export class TransactionManager {
     const t = this.txns.get(sessionId);
     if (!t || t.state !== "open") throw new Error(`no open transaction for ${sessionId}`);
     const policy = this.getPolicy();
-    const violations = dedupeViolations([...verifyEffects(policy, t.effects), ...sessionCanaryCheck(policy, t.effects), ...fingerprintSession(policy, t.effects)]);
+    const violations = dedupeViolations([...t.violations, ...verifyEffects(policy, t.effects), ...sessionCanaryCheck(policy, t.effects), ...fingerprintSession(policy, t.effects)]);
     if (violations.length) {
       this.abort(sessionId);
       return { ok: false, state: "aborted", violations, filesCommitted: [], effectsReleased: [] };
@@ -139,29 +145,46 @@ export class TransactionManager {
    * Async commit: deterministic tiers first (exact/canary/fingerprint); only if they pass does the
    * optional judge run. Any judge error blocks (fail closed). All-or-nothing, like commit().
    */
-  async commitWithJudge(sessionId: string, judge?: (policy: Policy, effects: OutboundEffect[]) => Promise<Violation[]>): Promise<CommitResult & { judged: boolean }> {
+  async commitWithJudge(sessionId: string, judge?: (policy: Policy, effects: OutboundEffect[]) => Promise<Violation[]>, onTier?: (t: TierResult) => void): Promise<CommitResult & { judged: boolean }> {
     const t = this.txns.get(sessionId);
     if (!t || t.state !== "open") throw new Error(`no open transaction for ${sessionId}`);
     const policy = this.getPolicy();
-    const deterministic = dedupeViolations([...verifyEffects(policy, t.effects), ...sessionCanaryCheck(policy, t.effects), ...fingerprintSession(policy, t.effects)]);
+    // Every deterministic tier runs (so each verdict can be reported); the judge runs only if they all pass
+    const tier = (name: TierName, f: () => Violation[]): Violation[] => {
+      const t0 = performance.now();
+      const v = f();
+      onTier?.({ tier: name, ok: v.length === 0, ms: Math.round((performance.now() - t0) * 100) / 100, violations: v });
+      return v;
+    };
+    const deterministic = dedupeViolations([
+      ...tier("C1-contract", () => [...t.violations]),
+      ...tier("R0-R3-exact-canary", () => [...verifyEffects(policy, t.effects), ...sessionCanaryCheck(policy, t.effects)]),
+      ...tier("R4-fingerprint", () => fingerprintSession(policy, t.effects)),
+    ]);
     if (deterministic.length) {
+      onTier?.({ tier: "R5-super-judge", ok: true, ms: 0, violations: [], skipped: "a deterministic tier already blocked" });
       this.abort(sessionId);
       return { ok: false, state: "aborted", violations: deterministic, filesCommitted: [], effectsReleased: [], judged: false };
     }
     let judged = false;
     if (judge && t.effects.length) {
       let jv: Violation[];
+      const t0 = performance.now();
       try {
         jv = await judge(policy, t.effects);
         judged = true;
       } catch (e) {
+        onTier?.({ tier: "R5-super-judge", ok: false, ms: Math.round(performance.now() - t0), violations: [], error: (e as Error).message });
         this.abort(sessionId);
         throw new JudgeUnavailableError((e as Error).message);
       }
+      onTier?.({ tier: "R5-super-judge", ok: jv.length === 0, ms: Math.round(performance.now() - t0), violations: jv });
       if (jv.length) {
         this.abort(sessionId);
         return { ok: false, state: "aborted", violations: jv, filesCommitted: [], effectsReleased: [], judged: true };
       }
+    } else {
+      onTier?.({ tier: "R5-super-judge", ok: true, ms: 0, violations: [], skipped: judge ? "no outbound effects" : "judge disabled" });
     }
     for (const e of t.effects) this.writeOutbox(sessionId, e);
     const filesCommitted = t.fs.commit();
@@ -174,6 +197,7 @@ export class TransactionManager {
     if (!t || t.state !== "open") return;
     t.fs.discard();
     t.effects.length = 0;
+    t.violations.length = 0;
     t.state = "aborted";
   }
 }

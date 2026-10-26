@@ -11,6 +11,9 @@
     "properties": {
       "stateDir": {
         "type": "string"
+      },
+      "inferenceUrl": {
+        "type": "string"
       }
     }
   },

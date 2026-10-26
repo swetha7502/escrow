@@ -52,33 +52,51 @@ export function parseVerdict(raw: string): JudgeVerdict {
   return { leak: j.leak, findings, raw };
 }
 
+export interface JudgeCall { model: string; ms: number; promptTokens?: number; completionTokens?: number; leak?: boolean; error?: string; vote: number }
+
 /**
  * Judge factory. Returns a JudgeFn suitable for commitWithJudge.
  * On any error (network, timeout, unparseable, cached mode) it throws, and the caller must block.
+ * `votes` > 1 is self-consistency: that many independent calls, and the session is a leak if ANY says so.
  */
-export function makeSuperJudge(opts: { runId?: string; maxTokens?: number } = {}): JudgeFn {
+export function makeSuperJudge(opts: { runId?: string; maxTokens?: number; baseUrl?: string; votes?: number; temperature?: number; onCall?: (c: JudgeCall) => void } = {}): JudgeFn {
+  const votes = Math.max(1, opts.votes ?? 1);
+  const one = async (policy: Policy, effects: OutboundEffect[], vote: number): Promise<JudgeVerdict> => {
+    const { system, user } = buildPrompt(policy, effects);
+    const t0 = Date.now();
+    try {
+      const r = await chat({
+        model: "super",
+        runId: opts.runId ?? "escrow-judge",
+        baseUrl: opts.baseUrl,
+        maxTokens: opts.maxTokens ?? 700,
+        temperature: opts.temperature ?? (votes > 1 ? 0.6 : 0), // independent votes need sampling diversity
+        extraBody: { reasoning_effort: "low" }, // Super is a reasoning model; low effort keeps the JSON verdict from being starved by chain-of-thought
+        messages: [{ role: "system", content: system }, { role: "user", content: user }],
+      });
+      const verdict = parseVerdict(r.content);
+      opts.onCall?.({ model: r.model, ms: r.ms, promptTokens: r.usage?.prompt_tokens, completionTokens: r.usage?.completion_tokens, leak: verdict.leak, vote });
+      return verdict;
+    } catch (e) {
+      opts.onCall?.({ model: "super", ms: Date.now() - t0, error: (e as Error).message, vote });
+      throw e;
+    }
+  };
   return async (policy, effects) => {
     if (effects.length === 0) return [];
-    const { system, user } = buildPrompt(policy, effects);
-    const r = await chat({
-      model: "super",
-      runId: opts.runId ?? "escrow-judge",
-      maxTokens: opts.maxTokens ?? 700,
-      temperature: 0,
-      extraBody: { reasoning_effort: "low" }, // Super is a reasoning model; low effort keeps the JSON verdict from being starved by chain-of-thought
-      messages: [{ role: "system", content: system }, { role: "user", content: user }],
-    });
-    const verdict = parseVerdict(r.content);
-    if (!verdict.leak) return [];
+    const verdicts = await Promise.all(Array.from({ length: votes }, (_, i) => one(policy, effects, i))); // any error rejects → fail closed
+    const leaks = verdicts.filter((v) => v.leak);
+    if (!leaks.length) return [];
     const ids = effects.map((e) => e.id).join(",");
-    return verdict.findings.length
-      ? verdict.findings.map((f) => ({
+    const findings = leaks.flatMap((v) => v.findings);
+    return findings.length
+      ? findings.map((f) => ({
           effectId: f.effectId || ids,
           rule: "R5-super-judge" as const,
           studentId: f.studentId,
           field: f.fact,
           match: f.quote,
         }))
-      : [{ effectId: ids, rule: "R5-super-judge" as const, studentId: "?", field: "paraphrase", match: verdict.raw.slice(0, 120) }];
+      : [{ effectId: ids, rule: "R5-super-judge" as const, studentId: "?", field: "paraphrase", match: leaks[0].raw.slice(0, 120) }];
   };
 }

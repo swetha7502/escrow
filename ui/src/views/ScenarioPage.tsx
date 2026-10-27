@@ -10,6 +10,8 @@ const SECTIONS: { cat: Category; title: string; sub: string }[] = [
   { cat: "paraphrase", title: "Paraphrase leaks", sub: "No exact tokens — only the Super judge can see them." },
   { cat: "deterministic", title: "Deterministic catches", sub: "Exact match, canaries, fingerprints." },
   { cat: "clean", title: "Clean controls", sub: "Legitimate effects pass." },
+  { cat: "generated", title: "Ultra-generated attacks", sub: "Nemotron Ultra wrote the wording; the labels are by construction." },
+  { cat: "generated-clean", title: "Ultra-generated clean tasks", sub: "Must get through: this is the false-block rate." },
 ];
 
 const TIER_SHORT: Record<string, string> = { "R5-super-judge": "Super judge", "R4-fingerprint": "fingerprint", "R0-canary": "canary", "R3-unauthorized-recipient": "exact match", "C1-contract": "contract" };
@@ -122,7 +124,7 @@ export function ScenarioPage() {
             <div className="grid">
               {items.map((m, i) => (
                 <motion.div key={m.id} className="card small" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 * i, duration: 0.4 }}>
-                  <span className="tag">{m.id.split("-")[0]}</span>
+                  <span className="tag">{m.id.split("-")[0]}{m.tag ? ` · ${m.tag}` : ""}</span>
                   <h3>{m.title}</h3>
                   <p>{m.blurb}</p>
                   <Results id={m.id} meta={m} />

@@ -26,7 +26,7 @@ for (const f of readdirSync(dir).filter((x) => x.endsWith(".json")).sort()) {
   });
 }
 
-const scenarios = LIVE_SPECS.map((s) => ({ id: s.id, desc: s.desc, leaks: s.leaks, contractRequest: s.contractRequest ?? null, prompt: s.prompt }));
+const scenarios = LIVE_SPECS.map((s) => ({ id: s.id, desc: s.desc, leaks: s.leaks, contractRequest: s.contractRequest ?? null, prompt: s.prompt, category: s.category ?? null }));
 const roster = RECORDS.map((r) => ({ studentId: r.studentId, name: r.name, email: r.email })); // synthetic
 const out = { generatedAt: new Date().toISOString(), scenarios, roster, officials: POLICY.officials, runs };
 mkdirSync(resolve(ROOT, "ui/src/data"), { recursive: true });

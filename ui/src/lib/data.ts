@@ -7,7 +7,7 @@ export interface BundledRun {
   outcome: { result: string; tier: string; delivered: number; leaked: boolean; effectsAttempted: number; commits?: number };
   reply: string; delivered: Record<string, unknown>[]; events: UiEvent[];
 }
-export interface ScenarioSpec { id: string; desc: string; leaks: boolean; contractRequest: string | null; prompt: string }
+export interface ScenarioSpec { id: string; desc: string; leaks: boolean; contractRequest: string | null; prompt: string; category?: string | null }
 
 const data = raw as unknown as { generatedAt: string; scenarios: ScenarioSpec[]; roster: { studentId: string; name: string; email: string }[]; officials: string[]; runs: BundledRun[] };
 export const SCENARIO_SPECS = data.scenarios;
@@ -19,8 +19,8 @@ export const cachedRun = (scenario: string, arm: Arm, variant = "default") =>
 export const hasCached = (scenario: string, arm: Arm) => !!cachedRun(scenario, arm);
 export const studentName = (id: string) => ROSTER.find((r) => r.studentId === id)?.name;
 
-export type Category = "killer" | "contract" | "skill" | "deterministic" | "paraphrase" | "clean";
-export interface ScenarioMeta { id: string; title: string; blurb: string; category: Category; featured?: boolean; retryLabel?: string }
+export type Category = "killer" | "contract" | "skill" | "deterministic" | "paraphrase" | "clean" | "generated" | "generated-clean";
+export interface ScenarioMeta { id: string; title: string; blurb: string; category: Category; featured?: boolean; retryLabel?: string; tag?: string }
 
 /** Human titles for the cards. Descriptions come from the harness specs. */
 const META: Record<string, Omit<ScenarioMeta, "id">> = {
@@ -40,5 +40,14 @@ const META: Record<string, Omit<ScenarioMeta, "id">> = {
   "09-split-id-and-grade": { title: "Split id + grade", blurb: "Student id in one effect, failing grade in another.", category: "deterministic" },
   "10-split-identity-score": { title: "Split identity + score", blurb: "Identity and exact score in separate effects — caught by fingerprints.", category: "deterministic" },
 };
-export const scenarioMeta = (id: string): ScenarioMeta => ({ id, ...(META[id] ?? { title: id, blurb: SCENARIO_SPECS.find((s) => s.id === id)?.desc ?? "", category: "clean" }) });
+const GEN_LABEL: Record<string, string> = { prompt_injection: "prompt injection", split_leak: "split leak", paraphrase: "paraphrase", encoding: "encoding", out_of_contract: "out of contract", lookalike_address: "look-alike address", clean: "clean" };
+/** Ultra-generated scenarios (G..): title from the id, category tag from the generator's label */
+function generatedMeta(id: string): Omit<ScenarioMeta, "id"> | null {
+  const s = SCENARIO_SPECS.find((x) => x.id === id);
+  if (!s?.category || !/^G\d\d-/.test(id)) return null;
+  const words = id.replace(/^G\d\d-/, "").split("-").filter((w) => !["clean", "inject", "split", "para", "enc", "ooc", "lookalike"].includes(w));
+  const title = `${GEN_LABEL[s.category] ?? s.category}: ${words.join(" ")}`;
+  return { title: title[0].toUpperCase() + title.slice(1), blurb: s.desc, category: s.category === "clean" ? "generated-clean" : "generated", tag: GEN_LABEL[s.category] };
+}
+export const scenarioMeta = (id: string): ScenarioMeta => ({ id, ...(META[id] ?? generatedMeta(id) ?? { title: id, blurb: SCENARIO_SPECS.find((s) => s.id === id)?.desc ?? "", category: "clean" }) });
 export const specOf = (id: string) => SCENARIO_SPECS.find((s) => s.id === id);

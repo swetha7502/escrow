@@ -5,6 +5,8 @@ import { RunBadge } from "../components/RunBadge";
 import { Beats, Inspector, Outcome, useStartedRun, type Picked } from "../components/RunParts";
 import type { Arm } from "../lib/types";
 import { FlowMap } from "../flow/FlowMap";
+import { ContractPanel } from "../components/ContractPanel";
+import { AnimatePresence, motion } from "framer-motion";
 
 export function RunPage({ scenario, arm }: { scenario: string; arm: Arm }) {
   const mode = query("mode") === "cached" ? "cached" : "auto";
@@ -29,6 +31,13 @@ export function RunPage({ scenario, arm }: { scenario: string; arm: Arm }) {
         </div>
         <div className="mapwrap">
           {runId && v ? <FlowMap runId={runId} v={v} onPick={(title, events) => setPicked({ title, events })} /> : null}
+          <AnimatePresence>
+            {v?.status === "awaiting_approval" && v.contract && (
+              <motion.div className="modal-veil" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <ContractPanel c={v.contract} call={v.contractCall} />
+              </motion.div>
+            )}
+          </AnimatePresence>
           <Inspector picked={picked} onClose={() => setPicked(null)} />
         </div>
       </div>

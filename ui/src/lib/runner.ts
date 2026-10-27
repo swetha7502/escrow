@@ -90,10 +90,14 @@ type Decision = "approved" | "rejected";
 const localWaiters = new Map<string, { contract: Contract; resolve: (d: Decision) => void }>();
 const chan: BroadcastChannel | null = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("escrow-contracts") : null;
 const pendingListeners = new Set<() => void>();
-const notifyPending = () => pendingListeners.forEach((l) => l());
-
 /** Contracts drafted for local runs in other tabs, as announced on the channel */
 const remotePending = new Map<string, Contract>();
+let pendingSnapshot: Contract[] = [];
+const notifyPending = () => {
+  pendingSnapshot = [...[...localWaiters.values()].map((w) => w.contract), ...[...remotePending.values()].filter((c) => !localWaiters.has(c.id))];
+  pendingListeners.forEach((l) => l());
+};
+
 
 chan?.addEventListener("message", (m) => {
   const msg = m.data as { kind: string; contract?: Contract; contractId?: string; decision?: Decision };
@@ -113,7 +117,8 @@ function waitLocalDecision(c: Contract): Promise<Decision> {
 }
 
 export const localPending = {
-  list: (): Contract[] => [...[...localWaiters.values()].map((w) => w.contract), ...[...remotePending.values()].filter((c) => !localWaiters.has(c.id))],
+  /** Stable snapshot (useSyncExternalStore needs the same array until something changes) */
+  list: (): Contract[] => pendingSnapshot,
   subscribe: (l: () => void) => { pendingListeners.add(l); return () => { pendingListeners.delete(l); }; },
 };
 export const isLocalContract = (id: string) => localWaiters.has(id) || remotePending.has(id);

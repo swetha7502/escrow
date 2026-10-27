@@ -19,16 +19,25 @@ const out = resolve(import.meta.dirname, "../../evidence/ui");
 mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: Number(opt("--w", "1920")), height: Number(opt("--h", "1080")) }, deviceScaleFactor: Number(opt("--dpr", "1")) });
+const context = await browser.newContext();
+let page = await context.newPage();
+await page.setViewportSize({ width: Number(opt("--w", "1920")), height: Number(opt("--h", "1080")) });
 page.on("console", (m) => { if (m.type() === "error") console.error("[console]", m.text()); });
 page.on("pageerror", (e) => console.error("[pageerror]", e.message));
 await page.goto(`${opt("--base", "http://127.0.0.1:4173/")}#${path}`, { waitUntil: "networkidle" });
 for (const step of all("--step")) {
-  // step = "click:<selector>" | "wait:<ms>" | "until:<text>"
+  // step = "click:<selector>" | "wait:<ms>" | "until:<text>" | "page:<w>x<h>:<hash>" (a second tab, same browser)
   const [kind, ...rest] = step.split(":"); const arg = rest.join(":");
   if (kind === "click") await page.click(arg);
   if (kind === "wait") await page.waitForTimeout(Number(arg));
   if (kind === "until") await page.getByText(arg, { exact: false }).first().waitFor({ timeout: 180000 });
+  if (kind === "page") {
+    const [size, ...h] = arg.split(":"); const [w, ht] = size.split("x").map(Number);
+    page = await context.newPage(); await page.setViewportSize({ width: w, height: ht });
+    page.on("console", (m) => { if (m.type() === "error") console.error("[console:tab2]", m.text()); });
+    page.on("pageerror", (e) => console.error("[pageerror:tab2]", e.message));
+    await page.goto(`${opt("--base", "http://127.0.0.1:4173/")}#${h.join(":")}`, { waitUntil: "networkidle" });
+  }
 }
 const until = opt("--until", "");
 if (until) await page.getByText(until, { exact: false }).first().waitFor({ timeout: 180000 });

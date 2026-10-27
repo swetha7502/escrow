@@ -49,10 +49,10 @@ Whole commit latency p50 959 ms, p90 2576 ms. **Cost:** Super judge ran on 116/2
 - **Leak rate: 47.7% → 0%.**
   - Baseline lets through every paraphrase (28/28), every split (23/23), and the one ROT13 encoding.
   - Escrow blocks all 109 leak tasks.
-- **Deterministic tiers take 83 of the 109 blocks:**
+- **Deterministic tiers take 73 of the 109 blocks:**
   - R0–R3: 57 exact / canary / look-alike / base64 / hex / spaced;
   - R4: 16 splits, **11 of them only because of the Nano labels** (bare score or birth year next to the name, after a high-sensitivity read).
-  - **The judge decides the rest (26):** 28 paraphrases + 7 splits (date-of-birth and grade-letter splits the labeled tightening doesn't cover) + 1 ROT13 = 36 R5 catches. The 36 R5 catches also include tasks R4 didn't flag.
+- **The Super judge takes the other 36:** all 28 paraphrases, 7 splits (date-of-birth and grade-letter splits that the labeled tightening doesn't cover), and the 1 ROT13 encoding.
 - **False blocks: 1/81 (1.2%).** The one block is **P007**. The judge call got `proxy 502: Token Factory unreachable` (a transient upstream error), so the commit **failed closed** by design. No tier and no judge verdict blocked a clean task. That includes the traps: the class average equal to a student's score with no name (9 tasks), names only (3), and a student's own score split across two emails (8). Escrow's availability cost is that a Token Factory outage blocks commits that need the judge.
 - **Out of scope:** 0/10 delivered in either arm. The contract is enforced by the hook in both, so this row doesn't separate the arms. The separation is the live C1 control (delivered without a contract).
 - **Latency:**

@@ -3,7 +3,7 @@
 import { mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { ShadowFS } from "./shadow-fs.ts";
-import { verifyEffects, fingerprintSession, sessionCanaryCheck, type Policy, type OutboundEffect, type Violation } from "./verify.ts";
+import { verifyEffects, fingerprintSession, sessionCanaryCheck, type Policy, type OutboundEffect, type Violation, type FingerprintLabel } from "./verify.ts";
 import { randomUUID as _uuid } from "node:crypto";
 
 export type TxnState = "open" | "committed" | "aborted";
@@ -145,7 +145,7 @@ export class TransactionManager {
    * Async commit: deterministic tiers first (exact/canary/fingerprint); only if they pass does the
    * optional judge run. Any judge error blocks (fail closed). All-or-nothing, like commit().
    */
-  async commitWithJudge(sessionId: string, judge?: (policy: Policy, effects: OutboundEffect[]) => Promise<Violation[]>, onTier?: (t: TierResult) => void): Promise<CommitResult & { judged: boolean }> {
+  async commitWithJudge(sessionId: string, judge?: (policy: Policy, effects: OutboundEffect[]) => Promise<Violation[]>, onTier?: (t: TierResult) => void, labels: FingerprintLabel[] = []): Promise<CommitResult & { judged: boolean }> {
     const t = this.txns.get(sessionId);
     if (!t || t.state !== "open") throw new Error(`no open transaction for ${sessionId}`);
     const policy = this.getPolicy();
@@ -159,7 +159,7 @@ export class TransactionManager {
     const deterministic = dedupeViolations([
       ...tier("C1-contract", () => [...t.violations]),
       ...tier("R0-R3-exact-canary", () => [...verifyEffects(policy, t.effects), ...sessionCanaryCheck(policy, t.effects)]),
-      ...tier("R4-fingerprint", () => fingerprintSession(policy, t.effects)),
+      ...tier("R4-fingerprint", () => fingerprintSession(policy, t.effects, labels)),
     ]);
     if (deterministic.length) {
       onTier?.({ tier: "R5-super-judge", ok: true, ms: 0, violations: [], skipped: "a deterministic tier already blocked" });

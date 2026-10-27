@@ -9,6 +9,7 @@ import { JudgeUnavailableError } from "../../lib/escrow/txn.ts";
 import type { Policy } from "../../lib/escrow/verify.ts";
 import { logLine, type ToolCallEvent, type ToolCallCtx } from "./decide.ts";
 import { contractViolation, recordIdOf, type ContractAct, type TaskContract } from "../../lib/escrow/contract.ts";
+import { labelable, labelSessionKey, type ReadLabel } from "../../lib/escrow/labels.ts";
 import { classify, absPath, isProtected, inWorkspace, pathKey, WORKSPACE_ROOT, ESCROW_STATE } from "./policy.ts";
 
 const DEFAULT_BASE = "/sandbox/.openclaw/workspace";
@@ -50,9 +51,10 @@ export default definePluginEntry({
     mkdirSync(stateDir, { recursive: true });
     // One manager per process. OpenClaw may call register() more than once (hot reload, registry
     // rebuilds), and open transactions must survive that. Still in-memory, no WAL.
-    const g = globalThis as { __escrowTM?: { tm: TransactionManager; instance: string } };
+    const g = globalThis as { __escrowTM?: { tm: TransactionManager; instance: string; reads: Map<string, Set<string>> } };
     g.__escrowTM ??= {
       instance: Math.random().toString(36).slice(2, 8),
+      reads: new Map(), // labelable files read per session: the commit waits until each has a Nano label
       tm: new TransactionManager({
         workspace: WORKSPACE_ROOT,
         shadowBase: join(stateDir, "shadow"),
@@ -61,6 +63,24 @@ export default definePluginEntry({
       }),
     };
     const { tm, instance } = g.__escrowTM;
+    g.__escrowTM.reads ??= new Map();
+    const reads = g.__escrowTM.reads;
+    // Read labels: the host labeler (harness/labeler.ts) writes labels/<session>.jsonl after Nano labels each read.
+    const loadLabels = (s: string): ReadLabel[] => {
+      try { return readFileSync(join(stateDir, "labels", `${labelSessionKey(s)}.jsonl`), "utf8").split("\n").filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as ReadLabel]; } catch { return []; } }); } catch { return []; }
+    };
+    const labelWaitMs = (): number => { try { return Number(readFileSync(join(stateDir, "label-wait-ms"), "utf8").trim()) || 0; } catch { return 6000; } };
+    /** Wait (bounded) until every labelable read in the session has a label. Missing labels just mean plain R4. */
+    const labelsFor = async (s: string) => {
+      const want = reads.get(labelSessionKey(s)) ?? new Set<string>();
+      const deadline = Date.now() + labelWaitMs();
+      let got = loadLabels(s);
+      while ([...want].some((p) => !got.some((l) => l.path === p)) && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 200));
+        got = loadLabels(s);
+      }
+      return { labels: got.filter((l) => want.has(l.path)), want: want.size };
+    };
     const proc = { pid: process.pid, tm: instance };
     const audit = (o: Record<string, unknown>) => appendFileSync(auditPath, JSON.stringify({ ts: new Date().toISOString(), ...proc, mode: mode(), ...o }) + "\n");
     audit({ event: "register" });
@@ -106,6 +126,7 @@ export default definePluginEntry({
       } else if (cls === "read" && abs) {
         if (abs.startsWith(ESCROW_STATE)) block("Escrow state is not readable.");
         else {
+          if (labelable(abs)) { const k = labelSessionKey(session); if (!reads.has(k)) reads.set(k, new Set()); reads.get(k)!.add(abs); note = "label requested"; }
           const s = tm.get(session)?.state === "open" ? tm.get(session)!.fs.shadowed(abs) : null;
           if (s) { result = { params: { ...ev.params, [key!]: s } }; note = `read redirected to shadow`; }
         }
@@ -126,7 +147,7 @@ export default definePluginEntry({
 
       const d = result && "block" in result ? { block: true, blockReason: result.blockReason } : { block: false };
       try {
-        appendFileSync(auditPath, logLine(ev, c, d, { ...proc, class: cls, note, rewritten: result && "params" in result ? result.params : undefined }) + "\n");
+        appendFileSync(auditPath, logLine(ev, c, d, { ...proc, class: cls, note, abs: cls === "read" ? abs ?? undefined : undefined, rewritten: result && "params" in result ? result.params : undefined }) + "\n");
       } catch (e) {
         api.logger.error(`escrow-hook: audit write failed (${(e as Error).message}); blocking ${ev.toolName}`);
         return { block: true, blockReason: "Escrow: audit log unavailable" };
@@ -182,11 +203,13 @@ export default definePluginEntry({
         const t = tm.get(s);
         if (!t || t.state !== "open") return text("Nothing to commit.");
         const useJudge = judgeEnabled();
+        const lab = await labelsFor(s);
+        audit({ event: "labels_used", session: s, want: lab.want, labels: lab.labels.map((l) => ({ path: l.path, recordType: l.recordType, sensitivity: l.sensitivity, studentIds: l.studentIds, sensitiveFields: l.sensitiveFields, source: l.source })) });
         let r: CommitResult & { judged?: boolean };
         try {
           r = await tm.commitWithJudge(s,
             useJudge ? makeSuperJudge({ runId: `judge-${s}`.slice(0, 120), baseUrl: inferenceUrl, onCall: (c) => audit({ event: "judge_call", session: s, ...c }) }) : undefined,
-            (t) => audit({ event: "verify_tier", session: s, ...t }));
+            (t) => audit({ event: "verify_tier", session: s, ...t, ...(t.tier === "R4-fingerprint" ? { labels: `${lab.labels.length}/${lab.want}` } : {}) }), lab.labels);
         } catch (e) {
           tm.abort(s);
           const why = e instanceof JudgeUnavailableError ? `judge unavailable (${e.message})` : (e as Error).message;

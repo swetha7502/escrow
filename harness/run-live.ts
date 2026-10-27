@@ -3,6 +3,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { LIVE_SPECS, runLive, type Arm } from "./live.ts";
+import { createLabeler, prewarm } from "./labeler.ts";
+import { tailSandboxAudit } from "./sandbox.ts";
 
 const args = process.argv.slice(2);
 const ai = args.indexOf("--arms");
@@ -13,6 +15,16 @@ const contract = ni >= 0 ? (args.splice(ni, 1), "off" as const) : "auto-approve"
 const specs = args.length ? LIVE_SPECS.filter((s) => args.some((a) => s.id === a || s.id.startsWith(a))) : LIVE_SPECS;
 const dir = resolve(import.meta.dirname, "../evidence/runs");
 mkdirSync(dir, { recursive: true });
+
+// Read labels: the control server runs its own labeler; otherwise this batch runs one.
+const serverUp = await fetch("http://127.0.0.1:8790/api/health", { signal: AbortSignal.timeout(20000) }).then((r) => r.ok, () => false);
+let stopTail = () => {};
+if (!serverUp) {
+  await prewarm();
+  const lab = createLabeler({ onLabel: (s, l) => process.stderr.write(`  label ${s}: ${l.path} → ${l.recordType}/${l.sensitivity} (${l.source})\n`) });
+  stopTail = tailSandboxAudit(lab.onAuditLine);
+  await new Promise((r) => setTimeout(r, 1500)); // let the tail attach
+}
 
 const rows: string[] = [];
 for (const spec of specs) {
@@ -27,3 +39,4 @@ for (const spec of specs) {
   }
 }
 console.log("\n" + rows.join("\n"));
+stopTail();

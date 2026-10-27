@@ -24,6 +24,8 @@ export interface RunView {
   effects: Record<string, Effect>; effectOrder: string[];
   tiers: Tier[]; attempts: Attempt[];
   reads: number; shadowWrites: number; toolCalls: number;
+  /** Nano read labels seen for this run */
+  labels: UiEvent[];
   recipients: string[];
   beats: Beat[];
   log: UiEvent[];
@@ -48,10 +50,11 @@ const FAIL_SHORT: Record<string, string> = {
   "C1-contract": "out of contract", "R0-canary": "canary tripped", "R0-canary-fuzzy": "canary tripped", "R3-unauthorized-recipient": "record → wrong recipient",
   "R4-fingerprint": "split leak", "R5-super-judge": "LEAK (paraphrase)",
 };
+const failShort = (v: { rule: string; field?: string } | undefined) => !v ? undefined : v.rule === "R4-fingerprint" && /labeled/.test(v.field ?? "") ? "score + name (Nano-labeled read)" : FAIL_SHORT[v.rule];
 const freshTiers = (): Tier[] => TIER_DEFS.map((t) => ({ id: t.id, label: t.short, state: "idle" }));
 
 export function emptyRun(runId: string, scenario = "", arm: Arm = "escrow"): RunView {
-  return { runId, scenario, arm, leaks: false, desc: "", live: null, cached: false, status: "starting", contract: null, effects: {}, effectOrder: [], tiers: freshTiers(), attempts: [], reads: 0, shadowWrites: 0, toolCalls: 0, recipients: [], beats: [], log: [] };
+  return { runId, scenario, arm, leaks: false, desc: "", live: null, cached: false, status: "starting", contract: null, effects: {}, effectOrder: [], tiers: freshTiers(), attempts: [], labels: [], reads: 0, shadowWrites: 0, toolCalls: 0, recipients: [], beats: [], log: [] };
 }
 
 const short = (s: unknown, n = 70) => { const t = String(s ?? "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
@@ -145,7 +148,14 @@ export function apply(v: RunView, e: UiEvent): RunView {
       break;
     }
     case "tier_verdict": {
-      s.tiers = s.tiers.map((t) => t.id !== e.tier ? t : { ...t, state: e.skipped ? "skip" : e.ok ? "pass" : "fail", ms: e.ms as number | null, detail: e.skipped ? String(e.skipped) : e.ok ? "pass" : FAIL_SHORT[((e.violations as { rule: string }[]) ?? [])[0]?.rule] ?? (e.error ? "error → fail closed" : "fail"), event: e });
+      s.tiers = s.tiers.map((t) => t.id !== e.tier ? t : { ...t, state: e.skipped ? "skip" : e.ok ? "pass" : "fail", ms: e.ms as number | null, detail: e.skipped ? String(e.skipped) : e.ok ? (e.tier === "R4-fingerprint" && e.labels ? `pass · labels ${e.labels}` : "pass") : failShort(((e.violations as { rule: string; field?: string }[]) ?? [])[0]) ?? (e.error ? "error → fail closed" : "fail"), event: e });
+      break;
+    }
+    case "read_label": {
+      s.labels = [...s.labels.filter((l) => l.path !== e.path), e];
+      const who = ((e.studentIds as string[]) ?? []).map((id) => studentName(id) ?? id);
+      beat(e.sensitivity === "high" ? "pending" : "neutral", "◈", `Nano labeled ${base(e.path)}: ${String(e.recordType).replace("_", " ")} · ${e.sensitivity}`,
+        `${who.length && e.recordType === "student_record" ? `${who.join(", ")} · ` : ""}${((e.sensitiveFields as string[]) ?? []).join(", ") || "no sensitive fields"}${e.source === "path-fallback" ? " · path fallback (Nano unavailable)" : e.cache === "hit" ? " · cached Nano label" : ""}`);
       break;
     }
     case "judge_call":

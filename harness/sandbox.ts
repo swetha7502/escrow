@@ -52,3 +52,31 @@ export async function agentTurn(sessionId: string, message: string, timeoutSec =
     return { ok: false, reply: "", durationMs: Date.now() - t0, raw: null, error: (e as Error).message.slice(0, 2000) };
   }
 }
+
+/**
+ * Follow the hook's audit log live: a long-lived `tail -F` over OpenShell exec (lock-free, as the sandbox user).
+ * Reconnects if the exec drops. Returns a stop function.
+ */
+export function tailSandboxAudit(onLine: (o: Record<string, unknown>) => void): () => void {
+  let child: import("node:child_process").ChildProcess | null = null;
+  let stopped = false;
+  const start = async () => {
+    const { spawn } = await import("node:child_process");
+    if (stopped) return;
+    child = spawn("openshell", ["sandbox", "exec", "-n", SANDBOX, "--no-tty", "--", "tail", "-n", "0", "-F", `${ESCROW_STATE}/audit.jsonl`], { stdio: ["pipe", "pipe", "ignore"] });
+    child.stdin!.end();
+    let buf = "";
+    child.stdout!.on("data", (d: Buffer) => {
+      buf += d.toString("utf8");
+      const lines = buf.split("\n");
+      buf = lines.pop()!;
+      for (const l of lines) {
+        if (!l.startsWith("{")) continue;
+        try { onLine(JSON.parse(l)); } catch { /* skip */ }
+      }
+    });
+    child.on("exit", () => { child = null; if (!stopped) setTimeout(() => void start(), 2000); });
+  };
+  void start();
+  return () => { stopped = true; child?.kill(); };
+}

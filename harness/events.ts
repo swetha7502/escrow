@@ -12,7 +12,7 @@ export type EventType =
   | "tool_call" | "shadow_write" | "shadow_read"
   | "effect_queued" | "baseline_release"
   | "tier_verdict" | "judge_call" | "commit" | "abort"
-  | "outbox_send" | "model_call";
+  | "outbox_send" | "model_call" | "read_label" | "labels_used";
 
 export interface EscrowEvent {
   seq: number;
@@ -62,6 +62,7 @@ export function fromAudit(e: Record<string, unknown>): EventBody[] {
     case "commit_blocked": return [{ ...base, type: "commit", ok: e.event === "commit", judged: e.judged, effects: e.effects, files: e.files, violations: e.violations }];
     case "commit_refused": return [{ ...base, type: "commit", ok: false, failClosed: true, error: e.error }];
     case "abort": return [{ ...base, type: "abort" }];
+    case "labels_used": return [{ ...base, type: "labels_used", want: e.want, labels: e.labels }];
     default: return []; // register and other housekeeping lines
   }
 }
@@ -75,7 +76,7 @@ export function fromProxy(e: Record<string, unknown>): EventBody[] {
   const u = (e.usage ?? {}) as { promptTokens?: number; completionTokens?: number };
   const model = String(e.model);
   const run = String(e.runId ?? "");
-  const role = model.includes("Ultra") ? "contract" : run.startsWith("p3-judge") || run.startsWith("scn-") || (u.promptTokens ?? 0) < 6000 ? "judge" : "agent";
+  const role = model.includes("Ultra") ? "contract" : model.includes("Nano") ? "labeler" : run.startsWith("p3-judge") || run.startsWith("scn-") || (u.promptTokens ?? 0) < 6000 ? "judge" : "agent";
   return [{ ts: String(e.ts), type: "model_call", model, role, ms: e.ms, status: e.status, promptTokens: u.promptTokens, completionTokens: u.completionTokens, usd: e.usd, totalUsd: e.totalUsd }];
 }
 
@@ -162,7 +163,12 @@ export interface ReplayableTranscript {
   events: Record<string, unknown>[]; modelCalls: Record<string, unknown>[];
   sender: { sent: string[]; rejected: { id: string; reason: string }[] };
   deliveredEffects?: Record<string, unknown>[];
+  labels?: object[];
 }
+
+/** A Nano read label as a stream event */
+export const labelEvent = (sessionId: string, l: Record<string, unknown>): EventBody =>
+  ({ ts: typeof l.ts === "string" ? l.ts : undefined, type: "read_label", sessionId, path: l.path, recordType: l.recordType, sensitivity: l.sensitivity, studentIds: l.studentIds, sensitiveFields: l.sensitiveFields, source: l.source, cache: l.cache, model: l.model, ms: l.ms, error: l.error });
 
 /**
  * A saved run as the stream events it produced, in order: contract, hook/plugin audit (with derived tier verdicts
@@ -175,6 +181,7 @@ export function transcriptToEvents(t: ReplayableTranscript): EventBody[] {
       { ts: t.contract.decidedAt ?? t.startedAt, type: "contract_decided" as const, contract: t.contract }] : []),
     ...[...t.events, ...deriveTierVerdicts(t.events)].flatMap(fromAudit),
     ...t.modelCalls.flatMap(fromProxy),
+    ...(t.labels ?? []).map((l) => labelEvent(t.sessionId, l as Record<string, unknown>)),
   ].sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
   const end = new Date(Date.parse(t.startedAt) + t.durationMs).toISOString();
   const payload = new Map((t.deliveredEffects ?? []).map((d) => [String(d.id), d]));

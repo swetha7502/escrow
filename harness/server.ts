@@ -12,16 +12,17 @@
 //   POST /api/contracts/:id/approve | /reject the user's decision; a waiting run starts or ends
 // WS /events: on connect, {type:"hello", backlog:[...]} then every event as it happens.
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { spawn, execFile, type ChildProcess } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { WebSocketServer, WebSocket } from "ws";
-import { EventBus, FileTail, fromAudit, fromProxy, fromSender, transcriptToEvents, type EventBody } from "./events.ts";
+import { EventBus, FileTail, fromAudit, fromProxy, fromSender, labelEvent, transcriptToEvents, type EventBody } from "./events.ts";
+import { createLabeler, prewarm, cacheSize } from "./labeler.ts";
 import { LIVE_SPECS, runLive, belongsTo, type Arm, type Transcript } from "./live.ts";
 import { draftContract, decideContract, getContract, listContracts } from "./contracts.ts";
-import { SANDBOX, ESCROW_STATE } from "./sandbox.ts";
+import { SANDBOX, tailSandboxAudit } from "./sandbox.ts";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const PORT = Number(process.env.ESCROW_API_PORT ?? 8790);
@@ -49,26 +50,14 @@ function publishSourced(b: EventBody, opts: { bySession: boolean }) {
   bus.publish({ ...b, ...(mine ? { runId: a!.id } : {}) });
 }
 
-/** Stream the hook's audit log: a long-lived `tail -F` over OpenShell exec (lock-free, as the sandbox user). */
+/** Stream the hook's audit log into the bus, and label every read with Nano (harness/labeler.ts). */
 function tailAudit() {
-  let child: ChildProcess | null = null;
-  const start = () => {
-    child = spawn("openshell", ["sandbox", "exec", "-n", SANDBOX, "--no-tty", "--", "tail", "-n", "0", "-F", `${ESCROW_STATE}/audit.jsonl`], { stdio: ["pipe", "pipe", "ignore"] });
-    child.stdin!.end();
-    let buf = "";
-    child.stdout!.on("data", (d: Buffer) => {
-      buf += d.toString("utf8");
-      const lines = buf.split("\n");
-      buf = lines.pop()!;
-      for (const l of lines) {
-        if (!l.startsWith("{")) continue;
-        try { for (const b of fromAudit(JSON.parse(l))) publishSourced(b, { bySession: true }); } catch { /* skip */ }
-      }
-    });
-    child.on("exit", () => { child = null; setTimeout(start, 2000); }); // sandbox restart, exec drop: reconnect
-  };
-  start();
-  return () => child?.kill();
+  const labeler = createLabeler({ onLabel: (session, l) => publishSourced(labelEvent(session, l as unknown as Record<string, unknown>), { bySession: true }) });
+  void prewarm().then((ls) => console.log(`labeler: ${ls.length} course files labeled (cache ${cacheSize()})`));
+  return tailSandboxAudit((o) => {
+    for (const b of fromAudit(o)) publishSourced(b, { bySession: true });
+    labeler.onAuditLine(o);
+  });
 }
 
 // ---- health / preflight ----------------------------------------------------------------------------

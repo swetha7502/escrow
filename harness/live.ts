@@ -11,6 +11,8 @@ import { SandboxTransport } from "../sender/sandbox-transport.ts";
 import { hostVerifier } from "../sender/verify.ts";
 import { agentTurn, auditLength, auditSince, setMode } from "./sandbox.ts";
 import { draftContract, decideContract, waitForDecision, setContractRequired, type DraftCall } from "./contracts.ts";
+import { readLabels } from "./labeler.ts";
+import type { ReadLabel } from "../lib/escrow/labels.ts";
 import type { TaskContract } from "../lib/escrow/contract.ts";
 
 const ROOT = resolve(import.meta.dirname, "..");
@@ -119,6 +121,8 @@ export interface Transcript {
   };
   /** Payloads the host sender released for this run */
   deliveredEffects?: Record<string, unknown>[];
+  /** Nano read labels the host labeler wrote for this session */
+  labels?: ReadLabel[];
 }
 
 const RULE_ORDER = ["C1-contract", "R0-canary", "R0-canary-fuzzy", "R3-unauthorized-recipient", "R4-fingerprint", "R5-super-judge"];
@@ -179,6 +183,7 @@ export async function runLive(spec: LiveSpec, arm: Arm, opts: RunOpts = {}): Pro
   }
   if (useContract) await setContractRequired(false);
   const events = (await auditSince(from)).filter((e) => belongsTo(e, sessionId));
+  const labels = await readLabels(sessionId);
   phase("sender_drain");
   const sender = await makeSender().drainOnce();
   const endedAt = new Date().toISOString();
@@ -188,7 +193,7 @@ export async function runLive(spec: LiveSpec, arm: Arm, opts: RunOpts = {}): Pro
     scenario: spec.id, arm, leaks: spec.leaks, desc: spec.desc, cached: false,
     sessionId, startedAt, durationMs: Date.parse(endedAt) - Date.parse(startedAt), contract, contractCall,
     prompt: spec.prompt, reply: turn.reply, agentOk: turn.ok, agentError: turn.error,
-    events, modelCalls: proxyCallsBetween(startedAt, endedAt), sender, deliveredEffects: deliveredPayloads(sender.sent),
+    events, labels, modelCalls: proxyCallsBetween(startedAt, endedAt), sender, deliveredEffects: deliveredPayloads(sender.sent),
     outcome,
   };
 }

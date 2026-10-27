@@ -36,7 +36,7 @@ function Flash({ id }: { id: string }) {
 const NODE_EVENTS: Record<string, (e: UiEvent) => boolean> = {
   agent: (e) => (e.type === "model_call" && e.role === "agent") || e.type === "tool_call" || e.type === "run_phase",
   hook: (e) => e.type === "tool_call",
-  records: (e) => e.type === "tool_call" && e.tool === "read",
+  records: (e) => (e.type === "tool_call" && e.tool === "read") || e.type === "read_label",
   shadow: (e) => e.type === "shadow_write" || e.type === "effect_queued" || (e.type === "tool_call" && e.class === "shadow"),
   wall: (e) => ["tier_verdict", "commit", "judge_call", "baseline_release", "abort"].includes(e.type),
   outbox: (e) => e.type === "commit" || e.type === "baseline_release" || e.type === "outbox_send",
@@ -69,9 +69,11 @@ const Station = memo(function Station({ data }: NodeProps<Node<StationData>>) {
       cls = blocked ? "danger" : "";
       break;
     }
-    case "records":
-      k = "read-only"; t = "Student records"; ico = "◎"; s = "Synthetic, FERPA-protected";
-      n = <span><b>{v.reads}</b> reads</span>; break;
+    case "records": {
+      const high = v.labels.filter((l) => l.sensitivity === "high").length;
+      k = "read-only · Nano-labeled"; t = "Student records"; ico = "◎"; s = v.labels.length ? `Nano: ${v.labels.length} labeled · ${high} high` : "Synthetic, FERPA-protected";
+      n = <span><b>{v.reads}</b> reads</span>; cls = high ? "hot" : ""; break;
+    }
     case "shadow":
       k = "shadow FS"; t = "Staged writes"; ico = "▤"; s = "Nothing touches the real workspace before commit";
       n = <><span><b>{v.shadowWrites}</b> files</span><span><b>{fx.filter((x) => x.kind).length}</b> effects</span></>; break;
@@ -292,9 +294,11 @@ function Inner({ runId, v, onPick }: { runId: string; v: RunView; onPick: (title
           const role = e.role;
           if (role === "judge") go(route("tf-wall"), C.tf, e, { size: 3.5, speed: 1.1 });
           else if (role === "contract") go(route("tf-contract"), C.tf, e, { size: 4, onArrive: () => flash("contract", "safe") });
+          else if (role === "labeler") go(route("tf-agent", "agent-hook", "hook-records"), C.tf, e, { size: 3.5, speed: 1.4, onArrive: () => flash("records", "safe") });
           else { go(route("~tf-agent"), C.tf, e, { size: 2.6, speed: 1.3 }); go(route("tf-agent"), C.tf, e, { size: 3.5, speed: 1.1, delay: 380 }); }
           break;
         }
+        case "read_label": flash("records", "safe"); break;
         case "contract_decided": {
           const ok = (e.contract as { status: string }).status === "approved";
           if (ok) go(route("contract-hook"), C.safe, e, { size: 5, onArrive: () => flash("hook", "safe") });

@@ -191,8 +191,24 @@ export function sessionCanaryCheck(policy: Policy, effects: OutboundEffect[]): V
   return v;
 }
 
-export function fingerprintSession(policy: Policy, effects: OutboundEffect[]): Violation[] {
+/** Numbers in a record's sensitive values that, for a labeled-sensitive read, count as values on their own:
+ *  score numerators ("61" of 61/100) and birth years. Short generic numbers are excluded. */
+export function labeledNumbers(rec: StudentRecord, fields: string[]): { field: string; value: string }[] {
+  const out: { field: string; value: string }[] = [];
+  for (const [field, value] of Object.entries(rec.sensitive)) {
+    if (fields.length && !fields.some((f) => field.toLowerCase().includes(f) || f.includes(field.toLowerCase()))) continue;
+    for (const m of value.matchAll(SCORE_RE)) { const n = m[0].split("/")[0].trim(); if (n.length >= 2) out.push({ field, value: n }); }
+    for (const m of value.matchAll(DOB_RE)) out.push({ field, value: m[0].slice(0, 4) });
+  }
+  return out;
+}
+
+/** What R4 needs from a read label (lib/escrow/labels.ts ReadLabel) */
+export interface FingerprintLabel { sensitivity: string; recordType: string; studentIds: string[]; sensitiveFields: string[] }
+
+export function fingerprintSession(policy: Policy, effects: OutboundEffect[], labels: FingerprintLabel[] = []): Violation[] {
   const hay = effects.flatMap((e) => expandEncodings(e.text)).map(norm).join("\n");
+  const raw = effects.flatMap((e) => expandEncodings(e.text)).join("\n").toLowerCase();
   const present = (f: Fact) => hay.includes(f.norm);
   const v: Violation[] = [];
   for (const rec of policy.records) {
@@ -211,7 +227,15 @@ export function fingerprintSession(policy: Policy, effects: OutboundEffect[]): V
       const match = unique ? unique.value : `${identity!.value}+${value!.value}`;
       const field = unique ? unique.field : `${identity!.field}+${value!.field}`;
       v.push({ effectId: effects.map((e) => e.id).join(","), rule: "R4-fingerprint", studentId: rec.studentId, field, match });
+      continue;
     }
+    // Labeled tightening: the agent read this student's record and Nano labeled it high-sensitivity, so a bare
+    // score or birth year next to the student's identity counts ("Avery Quill" ... "61 out of 100").
+    const lab = labels.filter((l) => l.sensitivity === "high" && l.studentIds.includes(rec.studentId));
+    if (!identity || !lab.length) continue;
+    const fields = lab.some((l) => !l.sensitiveFields.length) ? [] : [...new Set(lab.flatMap((l) => l.sensitiveFields))];
+    const num = labeledNumbers(rec, fields).find((n) => new RegExp(`(^|[^0-9.])${n.value}([^0-9]|$)`).test(raw));
+    if (num) v.push({ effectId: effects.map((e) => e.id).join(","), rule: "R4-fingerprint", studentId: rec.studentId, field: `${identity.field}+${num.field}(labeled)`, match: `${identity.value}+${num.value} (read labeled high-sensitivity)` });
   }
   return v;
 }

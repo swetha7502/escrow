@@ -7,6 +7,8 @@ export interface Health {
   proxy: { mode: string; totalUsd: number; capUsd: number } | null;
   sandbox: { name: string; phase: string };
   activeRun: string | null;
+  liveRuns?: "on" | "off";
+  authRequired?: boolean;
 }
 export interface BackendState {
   checked: boolean;
@@ -16,11 +18,23 @@ export interface BackendState {
   health: Health | null;
   ws: "off" | "connecting" | "open";
   reason?: string;
+  /** the backend wants an access token we don't have (or ours is wrong) */
+  locked: boolean;
 }
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
-let state: BackendState = { checked: false, online: false, liveReady: false, health: null, ws: "off" };
+let state: BackendState = { checked: false, online: false, liveReady: false, health: null, ws: "off", locked: false };
+
+// Shared access token for a hosted backend: typed in once by the presenter, kept in this browser only.
+// Never part of the build.
+const TOKEN_KEY = "escrow.accessToken";
+export const getToken = (): string | null => { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } };
+export function setToken(t: string | null) {
+  try { if (t) localStorage.setItem(TOKEN_KEY, t.trim()); else localStorage.removeItem(TOKEN_KEY); } catch { /* storage unavailable */ }
+  ws?.close();
+  void checkHealth();
+}
 const set = (s: Partial<BackendState>) => { state = { ...state, ...s }; listeners.forEach((l) => l()); };
 export const backend = {
   get: () => state,
@@ -31,11 +45,12 @@ export async function api<T>(path: string, init?: RequestInit & { timeoutMs?: nu
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), init?.timeoutMs ?? 8000);
   try {
-    const res = await fetch(`${API_BASE}${path}`, { ...init, signal: ctl.signal, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
+    const tok = getToken();
+    const res = await fetch(`${API_BASE}${path}`, { ...init, signal: ctl.signal, headers: { "content-type": "application/json", ...(tok ? { authorization: `Bearer ${tok}` } : {}), ...(init?.headers ?? {}) } });
     const text = await res.text();
     let body: unknown;
     try { body = JSON.parse(text); } catch { throw new Error(`backend returned non-JSON (${res.status})`); }
-    if (!res.ok) throw Object.assign(new Error((body as { error?: string }).error ?? `HTTP ${res.status}`), { status: res.status });
+    if (!res.ok) throw Object.assign(new Error((body as { error?: string }).error ?? `HTTP ${res.status}`), { status: res.status, body });
     return body as T;
   } catch (e) {
     if ((e as Error).name === "AbortError") throw new Error("backend timed out");
@@ -71,7 +86,8 @@ let wsRetry = 0;
 function connectWs() {
   if (ws || !WS_URL) return;
   set({ ws: "connecting" });
-  try { ws = new WebSocket(WS_URL); } catch { ws = null; set({ ws: "off" }); return; }
+  const tok = getToken();
+  try { ws = new WebSocket(WS_URL, tok ? ["escrow", `escrow-token.${tok}`] : ["escrow"]); } catch { ws = null; set({ ws: "off" }); return; }
   ws.onopen = () => { wsRetry = 0; set({ ws: "open" }); };
   ws.onmessage = (m) => {
     let msg: UiEvent & { backlog?: UiEvent[] };
@@ -99,11 +115,14 @@ export async function checkHealth() {
   try {
     const h = await api<Health>("/api/health", { timeoutMs: 20000 });
     if (!h || typeof h !== "object" || !("sandbox" in h)) throw new Error("not an Escrow backend");
-    const liveReady = !!h.proxy && h.proxy.mode === "live" && h.sandbox.phase === "Ready";
-    set({ checked: true, online: true, health: h, liveReady, reason: liveReady ? undefined : !h.proxy ? "spend proxy down" : h.proxy.mode !== "live" ? `proxy in ${h.proxy.mode} mode` : `sandbox ${h.sandbox.phase}` });
+    const off = h.liveRuns === "off";
+    const liveReady = !off && !!h.proxy && h.proxy.mode === "live" && h.sandbox.phase === "Ready";
+    set({ checked: true, online: true, locked: false, health: h, liveReady, reason: liveReady ? undefined : off ? "live runs off" : !h.proxy ? "spend proxy down" : h.proxy.mode !== "live" ? `proxy in ${h.proxy.mode} mode` : `sandbox ${h.sandbox.phase}` });
     connectWs();
   } catch (e) {
-    set({ checked: true, online: false, liveReady: false, health: null, reason: (e as Error).message });
+    // 401: a hosted backend that needs the access token. Everything still works as cached replays.
+    if ((e as { status?: number }).status === 401) { set({ checked: true, online: false, locked: true, liveReady: false, health: null, reason: getToken() ? "access token rejected" : "access token required" }); ws?.close(); return; }
+    set({ checked: true, online: false, locked: false, liveReady: false, health: null, reason: (e as Error).message });
     ws?.close();
   }
 }

@@ -26,10 +26,11 @@ page.on("console", (m) => { if (m.type() === "error") console.error("[console]",
 page.on("pageerror", (e) => console.error("[pageerror]", e.message));
 await page.goto(`${opt("--base", "http://127.0.0.1:4173/")}#${path}`, { waitUntil: "networkidle" });
 for (const step of all("--step")) {
-  // step = "click:<selector>" | "wait:<ms>" | "until:<text>" | "page:<w>x<h>:<hash>" (a second tab, same browser)
+  // step = "click:<selector>" | "wait:<ms>" | "type:<text>" | "until:<text>" | "page:<w>x<h>:<hash>" (a second tab, same browser)
   const [kind, ...rest] = step.split(":"); const arg = rest.join(":");
   if (kind === "click") await page.click(arg);
   if (kind === "wait") await page.waitForTimeout(Number(arg));
+  if (kind === "type") await page.keyboard.type(arg);
   if (kind === "until") await page.getByText(arg, { exact: false }).first().waitFor({ timeout: 180000 });
   if (kind === "page") {
     const [size, ...h] = arg.split(":"); const [w, ht] = size.split("x").map(Number);

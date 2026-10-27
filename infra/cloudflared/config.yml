@@ -1,0 +1,13 @@
+# Cloudflare Tunnel for the Escrow control API + event stream (harness/server.ts on 127.0.0.1:8790).
+# NOT started. Fill in <TUNNEL_ID> and the hostname after `cloudflared tunnel create` (see README.md here).
+# WebSockets (/events) go through a tunnel with no extra settings.
+tunnel: <TUNNEL_ID>
+credentials-file: /home/swetha/.cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: escrow-api.<your-domain>
+    service: http://127.0.0.1:8790
+    originRequest:
+      connectTimeout: 10s
+  # anything else: 404 (never expose other local ports)
+  - service: http_status:404

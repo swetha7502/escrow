@@ -23,6 +23,7 @@ import { createLabeler, prewarm, cacheSize } from "./labeler.ts";
 import { LIVE_SPECS, runLive, belongsTo, type Arm, type Transcript } from "./live.ts";
 import { draftContract, decideContract, getContract, listContracts } from "./contracts.ts";
 import { SANDBOX, tailSandboxAudit } from "./sandbox.ts";
+import { accessConfig, bearer, clientIp, liveRunsDisabled, RateLimiter, tokenOk, wsToken } from "./access.ts";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const PORT = Number(process.env.ESCROW_API_PORT ?? 8790);
@@ -69,10 +70,12 @@ async function health() {
     const { stdout } = await run("openshell", ["sandbox", "get", SANDBOX], { timeout: 15000 });
     phase = /Phase:\s*(\w+)/.exec(stdout.replace(/\x1b\[[\d;]*m/g, ""))?.[1] ?? "unknown"; // strip ANSI colour codes
   } catch { phase = "unreachable"; }
-  return { proxy, sandbox: { name: SANDBOX, phase }, activeRun: active && !["done", "failed"].includes(active.status) ? active.id : null };
+  return { proxy, sandbox: { name: SANDBOX, phase }, activeRun: active && !["done", "failed"].includes(active.status) ? active.id : null, liveRuns: liveRunsDisabled() ? "off" : "on", authRequired: !!ACCESS.token };
 }
 
 async function liveUnavailable(): Promise<string | null> {
+  const off = liveRunsDisabled();
+  if (off) return off;
   const h = await health();
   if (!h.proxy) return "spend proxy is down";
   if (h.proxy.mode !== "live") return `spend proxy is in ${h.proxy.mode} mode (cap or daily run limit reached)`;
@@ -125,6 +128,8 @@ async function startRun(scenario: string, arm: Arm, mode: "auto" | "live" | "cac
             if (phase === "contract_drafted") {
               const c = data as { id: string };
               rec.contractId = c.id; rec.status = "awaiting_approval";
+              // An undecided contract would hold the sandbox's single run slot: auto-reject after the timeout
+              setTimeout(() => { if (rec.status === "awaiting_approval") void decideContract(c.id, "rejected").catch(() => {}); }, APPROVAL_TIMEOUT_MS);
               bus.publish({ type: "contract_drafted", runId: rec.id, sessionId: rec.sessionId, contract: data });
             } else if (phase === "contract_decided") {
               rec.status = "running";
@@ -167,9 +172,13 @@ async function startRun(scenario: string, arm: Arm, mode: "auto" | "live" | "cac
 // starts runs and approves contracts, so it is never open to arbitrary origins.
 const UI_ORIGINS = (process.env.ESCROW_UI_ORIGINS ?? "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173").split(",").map((o) => o.trim()).filter(Boolean);
 const originOk = (o: string | undefined) => !o || UI_ORIGINS.includes(o); // no Origin header = CLI / curl
-const send = (res: ServerResponse, status: number, body: unknown) => {
+const ACCESS = accessConfig();
+const APPROVAL_TIMEOUT_MS = Number(process.env.ESCROW_APPROVAL_TIMEOUT_MS ?? 300_000);
+const limiter = new RateLimiter(ACCESS);
+
+const send = (res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}) => {
   const o = res.req?.headers.origin;
-  res.writeHead(status, { "content-type": "application/json", ...(o && originOk(o) ? { "access-control-allow-origin": o, vary: "Origin" } : {}) });
+  res.writeHead(status, { "content-type": "application/json", ...(o && originOk(o) ? { "access-control-allow-origin": o, vary: "Origin" } : {}), ...headers });
   res.end(JSON.stringify(body, null, 2));
 };
 const readJson = async (req: IncomingMessage): Promise<Record<string, unknown>> => {
@@ -186,14 +195,30 @@ export function createApp() {
       const origin = req.headers.origin;
       if (!originOk(origin)) return send(res, 403, { error: `origin ${origin} not allowed (set ESCROW_UI_ORIGINS)` });
       if (req.method === "OPTIONS") {
-        res.writeHead(204, { ...(origin ? { "access-control-allow-origin": origin, vary: "Origin" } : {}), "access-control-allow-methods": "GET, POST", "access-control-allow-headers": "content-type", "access-control-max-age": "600" });
+        res.writeHead(204, { ...(origin ? { "access-control-allow-origin": origin, vary: "Origin" } : {}), "access-control-allow-methods": "GET, POST", "access-control-allow-headers": "content-type, authorization", "access-control-max-age": "600" });
         return res.end();
       }
       const url = new URL(req.url ?? "/", "http://localhost");
       const parts = url.pathname.split("/").filter(Boolean); // ["api", ...]
       if (parts[0] !== "api") return send(res, 404, { error: "not found" });
       const [_, r1, id, action] = parts;
-      if (req.method === "GET" && r1 === "health") return send(res, 200, await health());
+      const ip = clientIp(ACCESS, req);
+      /** true (and a 429 sent) when this IP is over the limit */
+      const limited = (kind: Parameters<RateLimiter["take"]>[0]): boolean => {
+        const ra = limiter.take(kind, ip);
+        if (ra) send(res, 429, { error: `rate limit (${kind}); retry in ${ra}s` }, { "retry-after": String(ra) });
+        return ra > 0;
+      };
+      if (limited("api")) return;
+      const authed = tokenOk(ACCESS, bearer(req));
+      // Health is public but minimal without the token: enough for the UI to know it must ask for one
+      if (req.method === "GET" && r1 === "health") return authed ? send(res, 200, await health()) : send(res, 401, { error: "access token required", authRequired: true, liveRuns: liveRunsDisabled() ? "off" : "on" });
+      if (!authed) return send(res, 401, { error: "access token required", authRequired: true });
+      if (req.method === "POST" && r1 === "runs" && !id && limited("run")) return;
+      if (req.method === "POST" && r1 === "contracts" && !id) {
+        if (liveRunsDisabled()) return send(res, 503, { error: liveRunsDisabled() });
+        if (limited("draft")) return;
+      }
       if (req.method === "GET" && r1 === "scenarios")
         return send(res, 200, LIVE_SPECS.map((s) => ({ id: s.id, desc: s.desc, leaks: s.leaks, contract: !!s.contractRequest, cached: { baseline: hasCached(s.id, "baseline"), escrow: hasCached(s.id, "escrow") } })));
       if (r1 === "runs") {
@@ -228,7 +253,16 @@ export function createApp() {
     }
   });
 
-  const wss = new WebSocketServer({ server, path: "/events", verifyClient: ({ origin }: { origin?: string }) => originOk(origin) });
+  const wss = new WebSocketServer({
+    server, path: "/events",
+    verifyClient: ({ origin, req }: { origin?: string; req: IncomingMessage }, cb: (ok: boolean, code?: number, msg?: string) => void) => {
+      if (!originOk(origin)) return cb(false, 403, "origin not allowed");
+      if (limiter.take("ws", clientIp(ACCESS, req))) return cb(false, 429, "rate limit");
+      if (!tokenOk(ACCESS, wsToken(req))) return cb(false, 401, "access token required");
+      cb(true);
+    },
+    handleProtocols: (protocols: Set<string>) => (protocols.has("escrow") ? "escrow" : false), // never echo the token protocol
+  });
   wss.on("connection", (ws) => {
     ws.send(JSON.stringify({ type: "hello", backlog: bus.backlog.slice(-500) }));
     const on = (ev: unknown) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(ev)); };

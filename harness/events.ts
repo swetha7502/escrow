@@ -154,3 +154,34 @@ export function deriveTierVerdicts(audit: Record<string, unknown>[]): Record<str
     }));
   });
 }
+
+/** Minimal transcript shape needed for replay (harness/live.ts Transcript satisfies it). */
+export interface ReplayableTranscript {
+  sessionId: string; startedAt: string; durationMs: number;
+  contract: { decidedAt?: string } | null; contractCall?: unknown;
+  events: Record<string, unknown>[]; modelCalls: Record<string, unknown>[];
+  sender: { sent: string[]; rejected: { id: string; reason: string }[] };
+  deliveredEffects?: Record<string, unknown>[];
+}
+
+/**
+ * A saved run as the stream events it produced, in order: contract, hook/plugin audit (with derived tier verdicts
+ * for older transcripts), model calls, then the host sender's sends (with payloads). Used by the server's cached
+ * replay and bundled into the UI as its offline fallback, so both replay exactly the same thing.
+ */
+export function transcriptToEvents(t: ReplayableTranscript): EventBody[] {
+  const evs: EventBody[] = [
+    ...(t.contract ? [{ ts: t.startedAt, type: "contract_drafted" as const, contract: { ...t.contract, status: "pending" }, call: t.contractCall },
+      { ts: t.contract.decidedAt ?? t.startedAt, type: "contract_decided" as const, contract: t.contract }] : []),
+    ...[...t.events, ...deriveTierVerdicts(t.events)].flatMap(fromAudit),
+    ...t.modelCalls.flatMap(fromProxy),
+  ].sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
+  const end = new Date(Date.parse(t.startedAt) + t.durationMs).toISOString();
+  const payload = new Map((t.deliveredEffects ?? []).map((d) => [String(d.id), d]));
+  for (const id of t.sender.sent) {
+    const p = payload.get(id) ?? {};
+    evs.push({ ts: end, type: "outbox_send", sessionId: t.sessionId, effectId: id, kind: p.kind, status: "sent", to: p.to, target: p.target, subject: p.subject, body: p.body ?? p.content });
+  }
+  for (const r of t.sender.rejected) evs.push({ ts: end, type: "outbox_send", sessionId: t.sessionId, effectId: r.id, status: "rejected", reason: r.reason });
+  return evs;
+}

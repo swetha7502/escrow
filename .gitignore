@@ -4,3 +4,5 @@ node_modules/
 evidence/raw/
 state/
 plugins/*/dist/
+ui/dist/
+ui/.env

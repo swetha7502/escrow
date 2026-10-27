@@ -18,7 +18,7 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { WebSocketServer, WebSocket } from "ws";
-import { EventBus, FileTail, fromAudit, fromProxy, fromSender, deriveTierVerdicts, type EventBody } from "./events.ts";
+import { EventBus, FileTail, fromAudit, fromProxy, fromSender, transcriptToEvents, type EventBody } from "./events.ts";
 import { LIVE_SPECS, runLive, belongsTo, type Arm, type Transcript } from "./live.ts";
 import { draftContract, decideContract, getContract, listContracts } from "./contracts.ts";
 import { SANDBOX, ESCROW_STATE } from "./sandbox.ts";
@@ -100,20 +100,13 @@ export const hasCached = (scenario: string, arm: Arm) => existsSync(cachedPath(s
 async function replay(rec: RunRec, speed = 1): Promise<Transcript> {
   const t = JSON.parse(readFileSync(cachedPath(rec.scenario, rec.arm), "utf8")) as Transcript;
   const tag = { runId: rec.id, cached: true, sessionId: t.sessionId };
-  const evs: EventBody[] = [
-    ...(t.contract ? [{ ts: t.startedAt, type: "contract_drafted" as const, contract: { ...t.contract, status: "pending" }, call: t.contractCall }, { ts: t.contract.decidedAt ?? t.startedAt, type: "contract_decided" as const, contract: t.contract }] : []),
-    ...[...t.events, ...deriveTierVerdicts(t.events)].flatMap(fromAudit),
-    ...t.modelCalls.flatMap(fromProxy),
-  ].sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
   let prev = Date.parse(t.startedAt);
-  for (const e of evs) {
+  for (const e of transcriptToEvents(t)) {
     const gap = Math.min(Math.max(Date.parse(String(e.ts)) - prev, 0), 1500) / speed;
     prev = Date.parse(String(e.ts));
     await new Promise((r) => setTimeout(r, gap));
     bus.publish({ ...e, ...tag, originalTs: e.ts, ts: undefined });
   }
-  for (const id of t.sender.sent) bus.publish({ type: "outbox_send", ...tag, effectId: id, status: "sent" });
-  for (const r of t.sender.rejected) bus.publish({ type: "outbox_send", ...tag, effectId: r.id, status: "rejected", reason: r.reason });
   return t;
 }
 
@@ -181,8 +174,13 @@ async function startRun(scenario: string, arm: Arm, mode: "auto" | "live" | "cac
 
 // ---- HTTP ------------------------------------------------------------------------------------------
 
+// Browser origins allowed to call the API and read the stream (the UI's dev/preview servers by default). The API
+// starts runs and approves contracts, so it is never open to arbitrary origins.
+const UI_ORIGINS = (process.env.ESCROW_UI_ORIGINS ?? "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173").split(",").map((o) => o.trim()).filter(Boolean);
+const originOk = (o: string | undefined) => !o || UI_ORIGINS.includes(o); // no Origin header = CLI / curl
 const send = (res: ServerResponse, status: number, body: unknown) => {
-  res.writeHead(status, { "content-type": "application/json" });
+  const o = res.req?.headers.origin;
+  res.writeHead(status, { "content-type": "application/json", ...(o && originOk(o) ? { "access-control-allow-origin": o, vary: "Origin" } : {}) });
   res.end(JSON.stringify(body, null, 2));
 };
 const readJson = async (req: IncomingMessage): Promise<Record<string, unknown>> => {
@@ -196,6 +194,12 @@ const summary = (r: RunRec) => { const { transcript: _t, ...rest } = r; return r
 export function createApp() {
   const server = createServer(async (req, res) => {
     try {
+      const origin = req.headers.origin;
+      if (!originOk(origin)) return send(res, 403, { error: `origin ${origin} not allowed (set ESCROW_UI_ORIGINS)` });
+      if (req.method === "OPTIONS") {
+        res.writeHead(204, { ...(origin ? { "access-control-allow-origin": origin, vary: "Origin" } : {}), "access-control-allow-methods": "GET, POST", "access-control-allow-headers": "content-type", "access-control-max-age": "600" });
+        return res.end();
+      }
       const url = new URL(req.url ?? "/", "http://localhost");
       const parts = url.pathname.split("/").filter(Boolean); // ["api", ...]
       if (parts[0] !== "api") return send(res, 404, { error: "not found" });
@@ -235,7 +239,7 @@ export function createApp() {
     }
   });
 
-  const wss = new WebSocketServer({ server, path: "/events" });
+  const wss = new WebSocketServer({ server, path: "/events", verifyClient: ({ origin }: { origin?: string }) => originOk(origin) });
   wss.on("connection", (ws) => {
     ws.send(JSON.stringify({ type: "hello", backlog: bus.backlog.slice(-500) }));
     const on = (ev: unknown) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(ev)); };

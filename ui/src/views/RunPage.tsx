@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { modelStore } from "../lib/modelStore";
 import { useRunView, query, go } from "../lib/hooks";
 import { scenarioMeta } from "../lib/data";
 import { RunBadge } from "../components/RunBadge";
@@ -13,6 +14,7 @@ export function RunPage({ scenario, arm }: { scenario: string; arm: Arm }) {
   const [nonce, setNonce] = useState(0);
   const runId = useStartedRun(scenario, arm, mode, nonce);
   const v = useRunView(runId);
+  useEffect(() => { modelStore.setFocus([runId]); return () => modelStore.setFocus([]); }, [runId]);
   const [picked, setPicked] = useState<Picked | null>(null);
   const meta = scenarioMeta(scenario);
   const done = v?.status === "done" || v?.status === "failed";

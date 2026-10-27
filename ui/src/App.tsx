@@ -4,6 +4,7 @@ import { ScenarioPage } from "./views/ScenarioPage";
 import { RunPage } from "./views/RunPage";
 import { SplitView } from "./views/SplitView";
 import { ApprovePage } from "./views/ApprovePage";
+import { ModelHud } from "./components/ModelHud";
 
 function Topbar({ route }: { route: string[] }) {
   const b = useBackend();
@@ -45,6 +46,7 @@ export function App() {
       <div className="backdrop" />
       <Topbar route={route} />
       <ErrorBoundary key={route.join("/")} label={route[0] ?? "scenarios"}>{view}</ErrorBoundary>
+      {route[0] !== "approve" && <ErrorBoundary label="model HUD"><ModelHud docked={route[0] === "run" || route[0] === "split"} /></ErrorBoundary>}
       <div className="scanlines" />
     </div>
   );

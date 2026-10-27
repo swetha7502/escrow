@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { modelStore } from "../lib/modelStore";
 import { useBackend, useRunView, query, go } from "../lib/hooks";
 import { scenarioMeta } from "../lib/data";
 import { RunBadge } from "../components/RunBadge";
@@ -41,6 +42,7 @@ export function SplitView({ scenario }: { scenario: string }) {
   const baseDone = base?.status === "done" || base?.status === "failed";
   const escId = useStartedRun(scenario, "escrow", mode, nonce, sequential ? baseDone : true);
   const esc = useRunView(escId);
+  useEffect(() => { modelStore.setFocus([baseId, escId]); return () => modelStore.setFocus([]); }, [baseId, escId]);
   const meta = scenarioMeta(scenario);
   const done = baseDone && (esc?.status === "done" || esc?.status === "failed");
   return (

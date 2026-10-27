@@ -32,7 +32,7 @@ Spend so far: **~$4.19 of the $15 cap** (phase 2 used ~$2.74, the UI phase ~$0.2
 | 4 | Killer scenario: agent spreads a score across 3 messages, and the "extra exam time" paraphrase — baseline leaks both, escrow blocks at commit | `evidence/step4-killer.md` |
 | 5 | 10 scenarios × both arms: **escrow correct on all 10**, baseline leaks 4 | `evidence/step5-scenarios.md` |
 
-`npm test`: **80 passing**. `npm run typecheck` is clean, with the plugin checked against the real `openclaw@2026.9.2` types.
+`npm test`: **84 passing**. `npm run typecheck` is clean, with the plugin checked against the real `openclaw@2026.9.2` types.
 
 ### Phase 2 (2026-10-26): live agent end to end, contract, skills, event stream
 
@@ -44,6 +44,14 @@ Spend so far: **~$4.19 of the $15 cap** (phase 2 used ~$2.74, the UI phase ~$0.2
 | 3 | **Judge reliability.** Live Super judge, 5× each on 4 paraphrase leaks (incl. the live agent's own K1/K2 texts) + 3 clean controls: **0/20 misses, 0/15 false positives** (also 0/20 at temperature 0.6). Self-consistency not needed; built and measured (2 votes = 2× cost, +~0.1–0.2 s p90) | `evidence/p3-judge-reliability.md` |
 | 2 | **Real OpenClaw agent end to end, both arms.** 10 scripted scenarios: agent made exactly the scripted calls 20/20, and **all 20 outcomes match the pipeline-only table** (same verdict, same tier). Killer, agent-composed (agent reads records, writes the leak itself): baseline leaks both, escrow blocks both via R5 (judge now runs **inside the sandbox** via inference.local). 24 transcripts saved as the cached-run fallback | `evidence/p2-live-agent.md`, `evidence/runs/` |
 | 1 | **Live sandbox restored.** Root cause of the 10-25 outage was a poisoned NemoClaw state volume (`openclaw.json` owned by uid 1000, mode 600), not memory. destroy → onboard --fresh → onboard --resume → `up.sh`. Egress re-verified: example.com, DNS, direct Token Factory, raw TCP/UDP all fail; inference.local works | `evidence/p1-restore.md` |
+
+### Phase 4 (2026-10-27): Nano labels, ~40 scenarios, metrics, hosting hardening
+
+Hard budget for this phase: the proxy cap is lowered to **$11** (`node proxy/cli.ts set-cap 11`), so the proxy itself stops spending there.
+
+| Step | What | Proof |
+|---|---|---|
+| 1 | **Nemotron Nano read labels → R4.** A host labeler labels each read (type, sensitivity, students, fields) and writes the label into Escrow's sandbox state; R4 tightens for high-sensitivity reads (bare score + identity). Live K1 is now a **deterministic R4 catch** (labels 4/4) instead of judge-only. The HUD shows real Nano calls. Nano took 36–117 s per call this afternoon, so labels are cached by content hash with a background re-label | `evidence/p7-nano-labels.md` |
 
 ### Phase 3 (2026-10-27): the UI (`ui/`, React + Vite + React Flow + canvas particles + Framer Motion)
 
@@ -98,5 +106,4 @@ Screenshots for every view are in `evidence/ui/` (index: `evidence/ui/README.md`
 1. **Hosting decision** (yours). The static build works anywhere offline (cached replays). For live runs from a hosted UI, the control server must be reachable from the browser and its origin added to `ESCROW_UI_ORIGINS`; the server has no auth beyond the origin allowlist, so don't expose it publicly as-is.
 2. Let the user **edit** an Ultra contract draft before approving (today it's approve/reject).
 3. **Ultra-generated attack scenarios** as a regression suite; re-measure the judge on them (step 3 is 0/20 on our own set, 95% upper bound ~15%).
-4. **Nano read labeling** (tag `read` results that touch records). Must be host-side: `inference.local` pins in-sandbox calls to Super.
 5. Known gaps (unchanged): canary split with filler between the halves; short generic values; `apply_patch` envelope into the shadow FS.

@@ -4,6 +4,7 @@ import { scenarioMeta } from "../lib/data";
 import { RunBadge } from "../components/RunBadge";
 import { Beats, Inspector, Outcome, useStartedRun, type Picked } from "../components/RunParts";
 import type { Arm } from "../lib/types";
+import { FlowMap } from "../flow/FlowMap";
 
 export function RunPage({ scenario, arm }: { scenario: string; arm: Arm }) {
   const mode = query("mode") === "cached" ? "cached" : "auto";
@@ -27,6 +28,7 @@ export function RunPage({ scenario, arm }: { scenario: string; arm: Arm }) {
           <button className="btn escrow" disabled={!done} onClick={() => setNonce((n) => n + 1)}>Run again</button>
         </div>
         <div className="mapwrap">
+          {runId && v ? <FlowMap runId={runId} v={v} onPick={(title, events) => setPicked({ title, events })} /> : null}
           <Inspector picked={picked} onClose={() => setPicked(null)} />
         </div>
       </div>

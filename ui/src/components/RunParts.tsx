@@ -52,7 +52,7 @@ export function Beats({ beats, onPick, compact }: { beats: Beat[]; onPick: (e: U
   );
 }
 
-const FACT_KEYS = ["type", "tool", "decision", "tier", "ok", "status", "reason", "note", "model", "role", "ms", "usd", "leak", "effectId", "to", "target", "subject", "body", "cached", "originalTs"];
+const FACT_KEYS = ["type", "tool", "decision", "tier", "ok", "status", "reason", "note", "model", "role", "ms", "usd", "leak", "effectId", "to", "target", "subject", "body", "cached", "derived", "originalTs"];
 export interface Picked { title: string; events: UiEvent[] }
 export function Inspector({ picked, onClose }: { picked: Picked | null; onClose: () => void }) {
   return (

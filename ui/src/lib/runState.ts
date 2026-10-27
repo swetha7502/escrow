@@ -43,6 +43,11 @@ const RULE_LABEL: Record<string, string> = {
   "R4-fingerprint": "fingerprint (split leak)", "R5-super-judge": "Super judge (paraphrase)",
 };
 export const ruleLabel = (r?: string) => (r ? RULE_LABEL[r] ?? r : "");
+/** What a failing tier found, short (the tier's own name is shown beside it) */
+const FAIL_SHORT: Record<string, string> = {
+  "C1-contract": "out of contract", "R0-canary": "canary tripped", "R0-canary-fuzzy": "canary tripped", "R3-unauthorized-recipient": "record → wrong recipient",
+  "R4-fingerprint": "split leak", "R5-super-judge": "LEAK (paraphrase)",
+};
 const freshTiers = (): Tier[] => TIER_DEFS.map((t) => ({ id: t.id, label: t.short, state: "idle" }));
 
 export function emptyRun(runId: string, scenario = "", arm: Arm = "escrow"): RunView {
@@ -106,7 +111,7 @@ export function apply(v: RunView, e: UiEvent): RunView {
           const to = arr(p.to);
           addRecipient(to.length ? to : arr(p.target));
           putEffect({ id, kind: e.tool === "escrow_send_email" ? "send_email" : "write_external", to, target: p.target as string, subject: p.subject as string, body: String(p.body ?? p.content ?? ""), status: "blocked_hook", attempt: attemptNo(), leak: false, reason: String(e.reason ?? e.note ?? "blocked by the hook"), rule: String(e.note ?? "").startsWith("contract") || /contract/i.test(String(e.reason)) ? "C1-contract" : undefined, events: [e] });
-          beat("blocked", "⛔", `Contract blocked ${e.tool === "escrow_send_email" ? "email" : "write"} to ${to.join(", ") || p.target}`, short(e.reason, 110), true);
+          beat("blocked", "✕", `Contract blocked ${e.tool === "escrow_send_email" ? "email" : "write"} to ${to.join(", ") || p.target}`, short(e.reason, 110), true);
         } else s.pendingCall = e;
       } else if (e.tool === "escrow_commit") {
         if (s.arm === "escrow") {
@@ -134,13 +139,13 @@ export function apply(v: RunView, e: UiEvent): RunView {
         status: isBaseline ? (released ? "in_outbox" : "blocked_filter") : "held", attempt: attemptNo(), leak, rule: viol[0]?.rule, reason: viol[0] ? ruleLabel(viol[0].rule) : undefined, events: [...(call ? [call] : []), e] };
       putEffect(x);
       const what = `${x.kind === "send_email" ? "Email" : "Write"} to ${effectDest(x)}`;
-      if (!isBaseline) beat("pending", "⧗", `${what} — held in escrow`, `“${short(x.body, 80)}”`);
+      if (!isBaseline) beat("pending", "◷", `${what} — held in escrow`, `“${short(x.body, 80)}”`);
       else if (released) beat(leak ? "leak" : "safe", "→", `${what} — released immediately`, `“${short(x.body, 80)}”`, leak);
       else beat("blocked", "✕", `${what} — per-call filter blocked`, ruleLabel(x.rule));
       break;
     }
     case "tier_verdict": {
-      s.tiers = s.tiers.map((t) => t.id !== e.tier ? t : { ...t, state: e.skipped ? "skip" : e.ok ? "pass" : "fail", ms: e.ms as number | null, detail: e.skipped ? String(e.skipped) : e.ok ? "pass" : ruleLabel(((e.violations as { rule: string }[]) ?? [])[0]?.rule) || "fail", event: e });
+      s.tiers = s.tiers.map((t) => t.id !== e.tier ? t : { ...t, state: e.skipped ? "skip" : e.ok ? "pass" : "fail", ms: e.ms as number | null, detail: e.skipped ? String(e.skipped) : e.ok ? "pass" : FAIL_SHORT[((e.violations as { rule: string }[]) ?? [])[0]?.rule] ?? (e.error ? "error → fail closed" : "fail"), event: e });
       break;
     }
     case "judge_call":
@@ -164,7 +169,7 @@ export function apply(v: RunView, e: UiEvent): RunView {
           putEffect({ ...x, status: "blocked", rule: own?.rule ?? rule, reason: own ? ruleLabel(own.rule) : "held in the same session (all-or-nothing)", events: [...x.events, e] });
         }
         s.attempts = [...s.attempts, { n: attemptNo(), ok: false, failClosed: !!e.failClosed, effectIds: held.map((x) => x.id), rule, event: e, afterBlock: ab }];
-        beat("blocked", "⛔", `${s.leaks ? "LEAK BLOCKED" : "BLOCKED"} at commit${e.failClosed ? " (fail closed)" : ` · ${ruleLabel(rule)}`}`, `${held.length} held effect${held.length === 1 ? "" : "s"} destroyed — nothing left the sandbox`, true);
+        beat("blocked", "✕", `${s.leaks ? "LEAK BLOCKED" : "BLOCKED"} at commit${e.failClosed ? " (fail closed)" : ` · ${ruleLabel(rule)}`}`, `${held.length} held effect${held.length === 1 ? "" : "s"} destroyed — nothing left the sandbox`, true);
       }
       s.status = "running";
       break;

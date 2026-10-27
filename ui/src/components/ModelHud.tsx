@@ -4,12 +4,13 @@ import { MODELS, usd } from "../lib/models";
 import { useBackend, useTick } from "../lib/hooks";
 
 /** Small persistent panel: which Nemotron model is active, latency, cost per call, running spend. */
-export function ModelHud({ docked }: { docked?: boolean }) {
+export function ModelHud({ docked, startMin }: { docked?: boolean; startMin?: boolean }) {
   useSyncExternalStore(modelStore.subscribe, modelStore.version);
   useTick(500);
   const b = useBackend();
-  const [min, setMin] = useState(() => matchMedia("(max-width: 640px)").matches);
-  useEffect(() => { try { const s = localStorage.getItem("escrow.hud.min"); if (s) setMin(s === "1"); } catch { /* storage unavailable */ } }, []);
+  const small = () => matchMedia("(max-width: 640px), (max-height: 900px)").matches;
+  const [min, setMin] = useState(() => !!startMin || small());
+  useEffect(() => { if (startMin || small()) { setMin(true); return; } try { const s = localStorage.getItem("escrow.hud.min"); if (s) setMin(s === "1"); } catch { /* storage unavailable */ } }, [startMin]);
   const toggle = () => { setMin((m) => { try { localStorage.setItem("escrow.hud.min", m ? "0" : "1"); } catch { /* ignore */ } return !m; }); };
   const calls = modelStore.calls();
   const now = Date.now();

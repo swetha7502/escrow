@@ -1,6 +1,6 @@
 // Start runs and decide contracts. A run is live through the control API when the backend can do it; anything
 // else (backend unreachable, busy, failing) becomes a local replay of the bundled cached run, flagged cached.
-import { api, backend, hub } from "./backend";
+import { api, backend, backendReady, hub } from "./backend";
 import { cachedRun, specOf } from "./data";
 import { REPLAY_MAX_GAP_MS } from "./config";
 import type { Arm, Contract, UiEvent } from "./types";
@@ -14,9 +14,14 @@ const cancels = new Map<string, () => void>();
 export const cancelRun = (id: string) => { cancels.get(id)?.(); cancels.delete(id); };
 
 export async function startRun(scenario: string, arm: Arm, opts: { mode?: "auto" | "cached"; variant?: string } = {}): Promise<RunInfo> {
+  if (opts.mode !== "cached") await backendReady();
   const b = backend.get();
   let reason: string;
-  if (opts.mode === "cached") reason = "cached run requested";
+  if (opts.mode === "cached") {
+    let why: string | null = null;
+    try { why = sessionStorage.getItem("escrow.fallback"); sessionStorage.removeItem("escrow.fallback"); } catch { /* storage unavailable */ }
+    reason = why ? `fell back from live: ${why}` : "cached run requested";
+  }
   else if (!b.online) reason = `backend unreachable${b.reason ? ` (${b.reason})` : ""}`;
   else {
     try {

@@ -86,3 +86,21 @@ function FactRow({ k, v }: { k: string; v: unknown }) {
   const s = typeof v === "object" ? JSON.stringify(v) : k === "usd" ? `$${Number(v).toFixed(5)}` : String(v);
   return <><dt>{k}</dt><dd>{s.length > 400 ? s.slice(0, 400) + "…" : s}</dd></>;
 }
+
+/**
+ * A live run must never leave the UI hanging: if the event stream drops (or goes silent for too long) while a
+ * live run is in progress, call `onLost` so the view can switch to the recorded run, flagged CACHED.
+ */
+export function useLiveWatchdog(v: RunView | null, wsOpen: boolean, onLost: (why: string) => void) {
+  const lastCount = useRef(0), lastAt = useRef(Date.now()), downSince = useRef<number | null>(null);
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (!v || !v.live || v.status === "done" || v.status === "failed" || v.status === "awaiting_approval") { downSince.current = null; return; }
+      if (v.log.length !== lastCount.current) { lastCount.current = v.log.length; lastAt.current = Date.now(); }
+      if (!wsOpen) downSince.current ??= Date.now(); else downSince.current = null;
+      if (downSince.current && Date.now() - downSince.current > 8000) onLost("lost the connection to the backend mid-run");
+      else if (Date.now() - lastAt.current > 300000) onLost("the live run went silent for 5 minutes");
+    }, 1000);
+    return () => clearInterval(t);
+  }, [v, wsOpen, onLost]);
+}

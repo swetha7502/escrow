@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { modelStore } from "../lib/modelStore";
-import { useRunView, query, go } from "../lib/hooks";
+import { useBackend, useRunView, query, go } from "../lib/hooks";
 import { scenarioMeta } from "../lib/data";
 import { RunBadge } from "../components/RunBadge";
-import { Beats, Inspector, Outcome, useStartedRun, type Picked } from "../components/RunParts";
+import { Beats, Inspector, Outcome, useLiveWatchdog, useStartedRun, type Picked } from "../components/RunParts";
 import type { Arm } from "../lib/types";
 import { FlowMap } from "../flow/FlowMap";
 import { ContractPanel } from "../components/ContractPanel";
@@ -16,6 +16,9 @@ export function RunPage({ scenario, arm }: { scenario: string; arm: Arm }) {
   const v = useRunView(runId);
   useEffect(() => { modelStore.setFocus([runId]); return () => modelStore.setFocus([]); }, [runId]);
   const [picked, setPicked] = useState<Picked | null>(null);
+  const b = useBackend();
+  const onLost = useCallback((why: string) => { sessionStorage.setItem("escrow.fallback", why); go(`/run/${scenario}/${arm}?mode=cached&from=live`); }, [scenario, arm]);
+  useLiveWatchdog(v, b.ws === "open", onLost);
   const meta = scenarioMeta(scenario);
   const done = v?.status === "done" || v?.status === "failed";
   return (

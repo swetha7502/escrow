@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { modelStore } from "../lib/modelStore";
 import { useBackend, useRunView, query, go } from "../lib/hooks";
 import { scenarioMeta } from "../lib/data";
 import { RunBadge } from "../components/RunBadge";
-import { Beats, Inspector, Outcome, useStartedRun, type Picked } from "../components/RunParts";
+import { Beats, Inspector, Outcome, useLiveWatchdog, useStartedRun, type Picked } from "../components/RunParts";
 import { FlowMap } from "../flow/FlowMap";
 import type { Arm } from "../lib/types";
 import type { RunView } from "../lib/runState";
@@ -43,6 +43,9 @@ export function SplitView({ scenario }: { scenario: string }) {
   const escId = useStartedRun(scenario, "escrow", mode, nonce, sequential ? baseDone : true);
   const esc = useRunView(escId);
   useEffect(() => { modelStore.setFocus([baseId, escId]); return () => modelStore.setFocus([]); }, [baseId, escId]);
+  const onLost = useCallback((why: string) => { sessionStorage.setItem("escrow.fallback", why); go(`/split/${scenario}?mode=cached&from=live`); }, [scenario]);
+  useLiveWatchdog(base, b.ws === "open", onLost);
+  useLiveWatchdog(esc, b.ws === "open", onLost);
   const meta = scenarioMeta(scenario);
   const done = baseDone && (esc?.status === "done" || esc?.status === "failed");
   return (
@@ -54,7 +57,7 @@ export function SplitView({ scenario }: { scenario: string }) {
         <span className="muted" style={{ fontSize: 13 }}>{sequential ? "Live: baseline runs first, then escrow (one sandbox)." : "Same recorded scenario, both arms in lockstep."}</span>
         <div className="spacer" />
         <button className="btn" onClick={() => setLayout(layout === "rows" ? "cols" : "rows")}>{layout === "rows" ? "Columns ▥" : "Rows ▤"}</button>
-        {!forced && <button className="btn" onClick={() => go(`/split/${scenario}?mode=cached`)}>Cached lockstep</button>}
+        {!forced && b.online && <button className="btn" onClick={() => go(`/split/${scenario}?mode=cached`)}>Cached lockstep</button>}
         <button className="btn escrow" disabled={!done} onClick={() => setNonce((n) => n + 1)}>Run again</button>
       </div>
       <div className={`split ${layout}`}>

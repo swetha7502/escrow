@@ -49,3 +49,23 @@ test("deriveTierVerdicts: rebuilds per-tier verdicts from an old commit record, 
   assert.deepEqual(blockedByJudge.map((t) => t.ok), [true, true, true, false]);
   assert.deepEqual(deriveTierVerdicts([{ event: "verify_tier" }, { event: "commit" }]), []); // new transcripts carry real verdicts
 });
+
+test("transcriptToEvents: one replay stream for server and UI — ordered, contract first, sends last with payloads", async () => {
+  const { transcriptToEvents } = await import("./events.ts");
+  const s = "agent:main:explicit:t1";
+  const evs = transcriptToEvents({
+    sessionId: "t1", startedAt: "2026-10-26T00:00:00.000Z", durationMs: 5000,
+    contract: { decidedAt: "2026-10-26T00:00:01.000Z" }, contractCall: { model: "nvidia/Nemotron-3-Ultra-550b-a55b" },
+    events: [
+      { ts: "2026-10-26T00:00:03.000Z", event: "commit", session: s, judged: true, effects: ["eff-1"], violations: [] },
+      { ts: "2026-10-26T00:00:02.000Z", event: "enqueue", session: s, id: "eff-1", kind: "send_email", to: ["a@b.c"] },
+    ],
+    modelCalls: [{ ts: "2026-10-26T00:00:01.500Z", event: "call", model: "nvidia/nemotron-3-super-120b-a12b", usage: { promptTokens: 9000 } }],
+    sender: { sent: ["eff-1"], rejected: [] },
+    deliveredEffects: [{ id: "eff-1", kind: "send_email", to: ["a@b.c"], subject: "s", body: "hello" }],
+  });
+  assert.deepEqual(evs.map((e) => e.type), ["contract_drafted", "contract_decided", "model_call", "effect_queued", "tier_verdict", "tier_verdict", "tier_verdict", "tier_verdict", "commit", "outbox_send"]);
+  const send = evs[evs.length - 1];
+  assert.equal(send.body, "hello"); assert.deepEqual(send.to, ["a@b.c"]); assert.equal(send.ts, "2026-10-26T00:00:05.000Z");
+  assert.equal((evs[0].contract as { status: string }).status, "pending"); // the replay shows the pause before the decision
+});

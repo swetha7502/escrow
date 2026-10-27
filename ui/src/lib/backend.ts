@@ -109,9 +109,12 @@ export async function checkHealth() {
 }
 
 let started = false;
+let firstCheck: Promise<void> | null = null;
+/** Resolves once the first health check has finished (either way) */
+export const backendReady = () => firstCheck ?? Promise.resolve();
 export function startBackend() {
   if (started) return;
   started = true;
-  void checkHealth();
+  firstCheck = checkHealth();
   setInterval(() => { void checkHealth(); }, 15000);
 }

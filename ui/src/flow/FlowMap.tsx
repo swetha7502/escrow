@@ -3,7 +3,7 @@
 import { createContext, memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ReactFlow, ReactFlowProvider, Handle, Position, useReactFlow, useViewport, type Node, type Edge, type EdgeProps, type NodeProps } from "@xyflow/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { BOX, BARRIER_X, WALL_IN, edges as edgeGeo, pathD, rcptBox, samplePath, type EdgeGeo, type Pt } from "./geometry";
+import { BOX, BARRIER_X, WALL_IN, edges as edgeGeo, mapBounds, pathD, rcptBox, samplePath, type EdgeGeo, type Pt } from "./geometry";
 import { ParticleField } from "./particles";
 import { feedFor, effectDest, TIER_DEFS, type Effect, type RunView } from "../lib/runState";
 import { OFFICIALS, ROSTER, scenarioMeta } from "../lib/data";
@@ -171,7 +171,7 @@ const Wall = memo(function Wall() {
   const visible = fx.filter((x) => x.status === "held" || (x.status === "blocked" && !gone.has(x.id)));
   const baseline = v.arm === "baseline";
   const lastAttempt = v.attempts[v.attempts.length - 1];
-  const blocked = !baseline && lastAttempt?.ok === false && !fx.some((x) => x.status === "held" && x.attempt > lastAttempt.n);
+  const blocked = !baseline && v.status !== "verifying" && lastAttempt?.ok === false && !fx.some((x) => x.status === "held" && x.attempt > lastAttempt.n);
   const shown = visible.slice(-5);
   return (
     <div className={`wall ${baseline ? "baseline" : ""} ${blocked ? "blocked" : ""}`} onClick={() => pick(baseline ? "Per-call filter" : "Escrow wall", v.log.filter(NODE_EVENTS.wall))}>
@@ -236,6 +236,16 @@ function Inner({ runId, v, onPick }: { runId: string; v: RunView; onPick: (title
 
   if (field.current) field.current.vp = vp;
 
+  /** Fit the known layout into the pane ourselves: no dependence on React Flow having measured new nodes */
+  const nRef = useRef(nR); nRef.current = nR;
+  const fit = (animate: boolean) => {
+    const el = wrap.current; if (!el) return;
+    const W = el.clientWidth, H = el.clientHeight; if (!W || !H) return;
+    const bnd = mapBounds(nRef.current);
+    const zoom = Math.min(W / bnd.w, H / bnd.h, 1.6);
+    void rf.setViewport({ x: (W - bnd.w * zoom) / 2 - bnd.x * zoom, y: (H - bnd.h * zoom) / 2 - bnd.y * zoom, zoom }, { duration: animate ? 250 : 0 });
+  };
+
   const nodes: Node[] = useMemo(() => {
     const st = (id: string): Node => ({ id, type: "station", position: { x: BOX[id].x, y: BOX[id].y }, data: { id }, style: { width: BOX[id].w, height: BOX[id].h }, draggable: false, selectable: false });
     const rs = v.recipients.length ? v.recipients : [];
@@ -255,11 +265,11 @@ function Inner({ runId, v, onPick }: { runId: string; v: RunView; onPick: (title
   useEffect(() => {
     const f = new ParticleField(canvas.current!);
     field.current = f;
-    const ro = new ResizeObserver(() => { f.resize(); requestAnimationFrame(() => void rf.fitView({ padding: 0.04, duration: 0 })); });
+    const ro = new ResizeObserver(() => { f.resize(); fit(false); });
     ro.observe(wrap.current!);
     return () => { ro.disconnect(); f.destroy(); field.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { const t = setTimeout(() => void rf.fitView({ padding: 0.04, duration: 250 }), 80); return () => clearTimeout(t); }, [recipientsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fit(true); }, [recipientsKey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const ambient = geo.filter((g) => g.kind === "main").map((g) => samplePath(g));
     field.current?.setAmbient(ambient);
@@ -348,7 +358,7 @@ function Inner({ runId, v, onPick }: { runId: string; v: RunView; onPick: (title
         const t = field.current?.hit(ev.clientX - r.left, ev.clientY - r.top);
         if (t?.event) { ev.stopPropagation(); onPick(`Particle · ${t.event.type}${t.event.tool ? ` · ${t.event.tool}` : ""}`, [t.event]); }
       }}>
-        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} fitView fitViewOptions={{ padding: 0.05 }}
+        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onInit={() => fit(false)}
           nodesDraggable={false} nodesConnectable={false} elementsSelectable={false} zoomOnScroll={false} zoomOnDoubleClick={false} panOnDrag={false}
           preventScrolling={false} onNodeClick={() => { /* nodes handle their own clicks; this keeps them clickable */ }} minZoom={0.2} maxZoom={1.6} proOptions={{ hideAttribution: true }} />
         <canvas ref={canvas} className="particles" style={{ width: "100%", height: "100%" }} />

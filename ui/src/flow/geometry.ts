@@ -67,3 +67,10 @@ export function samplePath(g: EdgeGeo, reverse = false, n = 48): Pt[] {
   }
   return reverse ? pts.reverse() : pts;
 }
+
+/** Bounds of the whole map (the recipient column is always reserved, so the zoom never jumps mid-run) */
+export function mapBounds(nRcpt: number) {
+  const n = Math.max(1, nRcpt), last = rcptBox(n - 1, n), first = rcptBox(0, n);
+  const minY = Math.min(0, first.y), maxY = Math.max(BOX.records.y + BOX.records.h + 20, last.y + last.h);
+  return { x: -10, y: minY - 10, w: RCPT.x + RCPT.w + 20, h: maxY - minY + 20 };
+}

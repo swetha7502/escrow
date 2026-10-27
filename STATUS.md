@@ -1,8 +1,8 @@
-# Escrow: status (2026-10-26)
+# Escrow: status (2026-10-27)
 
 **Core claim:** *"The only non-inference exit is verified, and inference goes only to Nebius as the processor."* Proven end to end for the deterministic parts. See below.
 
-Spend so far: **~$3.97 of the $15 cap** (phase 2 used ~$2.74; a live agent run is ~$0.04–0.08) (`npm run spend:show`). Each OpenClaw agent model call re-sends a ~25k-token system prompt, about $0.008 per call on Nemotron Super.
+Spend so far: **~$4.19 of the $15 cap** (phase 2 used ~$2.74, the UI phase ~$0.22 for 4 live runs; a live agent run is ~$0.04–0.08) (`npm run spend:show`). Each OpenClaw agent model call re-sends a ~25k-token system prompt, about $0.008 per call on Nemotron Super.
 
 ## Done and proven (evidence in `evidence/`)
 
@@ -32,7 +32,7 @@ Spend so far: **~$3.97 of the $15 cap** (phase 2 used ~$2.74; a live agent run i
 | 4 | Killer scenario: agent spreads a score across 3 messages, and the "extra exam time" paraphrase — baseline leaks both, escrow blocks at commit | `evidence/step4-killer.md` |
 | 5 | 10 scenarios × both arms: **escrow correct on all 10**, baseline leaks 4 | `evidence/step5-scenarios.md` |
 
-`npm test`: **79 passing**. `npm run typecheck` is clean, with the plugin checked against the real `openclaw@2026.9.2` types.
+`npm test`: **80 passing**. `npm run typecheck` is clean, with the plugin checked against the real `openclaw@2026.9.2` types.
 
 ### Phase 2 (2026-10-26): live agent end to end, contract, skills, event stream
 
@@ -44,6 +44,19 @@ Spend so far: **~$3.97 of the $15 cap** (phase 2 used ~$2.74; a live agent run i
 | 3 | **Judge reliability.** Live Super judge, 5× each on 4 paraphrase leaks (incl. the live agent's own K1/K2 texts) + 3 clean controls: **0/20 misses, 0/15 false positives** (also 0/20 at temperature 0.6). Self-consistency not needed; built and measured (2 votes = 2× cost, +~0.1–0.2 s p90) | `evidence/p3-judge-reliability.md` |
 | 2 | **Real OpenClaw agent end to end, both arms.** 10 scripted scenarios: agent made exactly the scripted calls 20/20, and **all 20 outcomes match the pipeline-only table** (same verdict, same tier). Killer, agent-composed (agent reads records, writes the leak itself): baseline leaks both, escrow blocks both via R5 (judge now runs **inside the sandbox** via inference.local). 24 transcripts saved as the cached-run fallback | `evidence/p2-live-agent.md`, `evidence/runs/` |
 | 1 | **Live sandbox restored.** Root cause of the 10-25 outage was a poisoned NemoClaw state volume (`openclaw.json` owned by uid 1000, mode 600), not memory. destroy → onboard --fresh → onboard --resume → `up.sh`. Egress re-verified: example.com, DNS, direct Token Factory, raw TCP/UDP all fail; inference.local works | `evidence/p1-restore.md` |
+
+### Phase 3 (2026-10-27): the UI (`ui/`, React + Vite + React Flow + canvas particles + Framer Motion)
+
+Screenshots for every view are in `evidence/ui/` (index: `evidence/ui/README.md`). Every run carries a LIVE RUN or CACHED RUN badge, driven only by the stream's `cached` flag.
+
+| Step | What | Proof |
+|---|---|---|
+| 1 | Scenario landing: preset cards only (killer K1/K2 featured), Baseline / Escrow / Side-by-side buttons, last recorded verdict per arm | `evidence/ui/01-*` |
+| 2 | **Flow Map**: agent → hook → shadow FS → ESCROW WALL → outbox → host sender → recipients, with Token Factory as the only inference exit. Particles per event; effects pile up in escrow; tiers light up one by one at commit; blocked effects shatter; click any node, tier or particle for the raw event | `evidence/ui/02-*` |
+| 3 | Split view: baseline leaks step by step while escrow holds, then blocks. K2 reads "leak blocked" → "safe refusal verified" as two events. Live runs go one after the other (one sandbox), cached runs in lockstep | `evidence/ui/03-*` |
+| 4 | Ultra contract view: the run visibly pauses until Approve/Reject. The approvals page is responsive (phone shot), and decides through the API (live) or across tabs (cached). Verified: approve resumes, reject never starts the agent | `evidence/ui/04-*` |
+| 5 | Model HUD: active Nemotron model, latency, cost per call, run spend, proxy total, all from the stream (cached figures are marked RECORDED) | `evidence/ui/05-*` |
+| 6 | Deployment: API/WS URL from `VITE_API_BASE` / `VITE_WS_URL`; the API allowlists browser origins (`ESCROW_UI_ORIGINS`, unknown origin → 403). All 31 transcripts are bundled, so a static build with no backend replays everything (flagged CACHED). **Live via UI:** K1 escrow (blocked by R5, real tier timings) and C1 with Ultra contract approved in the UI (blocked by C1). **Backend killed mid-live-run:** UI switched to the recorded run in ~10 s with the reason shown | `evidence/ui/06-*`, `evidence/ui/README.md` |
 
 **Never run `nemoclaw rebuild` before the deadline.** Recovery recipe if the sandbox wedges: `evidence/p1-restore.md`.
 
@@ -72,6 +85,7 @@ Spend so far: **~$3.97 of the $15 cap** (phase 2 used ~$2.74; a live agent run i
 ## Operational notes
 
 * Restart the proxy: `proxy/run.sh`. Health: `curl localhost:8000/healthz`.
+* UI: `cd ui && npm run build && npx vite preview` → http://127.0.0.1:4173 (proxies `/api` + `/events` to the control server). Screenshots: `node ui/scripts/shots.ts <name> <hash-path> [--until text]`. After new live transcripts: `npm run bundle-runs` in `ui/`.
 * Control API + event stream: `node harness/server.ts` (127.0.0.1:8790). Record the stream: `node harness/ws-record.ts out.jsonl`.
 * Live scenario batch: `node harness/run-live.ts [ids] [--arms baseline,escrow] [--no-contract]`, then `node harness/report-live.ts`.
 * Exec into the sandbox **without** NemoClaw's global lock: `openshell sandbox exec -n escrow --no-tty -- <cmd> < /dev/null`.
@@ -81,7 +95,7 @@ Spend so far: **~$3.97 of the $15 cap** (phase 2 used ~$2.74; a live agent run i
 
 ## Next
 
-1. **UI** (React Flow + particles + Framer Motion) on `ws://127.0.0.1:8790/events` and the runner API. The cached runs in `evidence/runs/` cover all 15 scenarios × both arms (C1 escrow only + baseline + no-contract control).
+1. **Hosting decision** (yours). The static build works anywhere offline (cached replays). For live runs from a hosted UI, the control server must be reachable from the browser and its origin added to `ESCROW_UI_ORIGINS`; the server has no auth beyond the origin allowlist, so don't expose it publicly as-is.
 2. Let the user **edit** an Ultra contract draft before approving (today it's approve/reject).
 3. **Ultra-generated attack scenarios** as a regression suite; re-measure the judge on them (step 3 is 0/20 on our own set, 95% upper bound ~15%).
 4. **Nano read labeling** (tag `read` results that touch records). Must be host-side: `inference.local` pins in-sandbox calls to Super.

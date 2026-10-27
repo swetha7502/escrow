@@ -46,7 +46,7 @@ export function App() {
       <div className="backdrop" />
       <Topbar route={route} />
       <ErrorBoundary key={route.join("/")} label={route[0] ?? "scenarios"}>{view}</ErrorBoundary>
-      {route[0] !== "approve" && <ErrorBoundary label="model HUD"><ModelHud docked={route[0] === "run" || route[0] === "split"} /></ErrorBoundary>}
+      {route[0] !== "approve" && <ErrorBoundary label="model HUD"><ModelHud docked={route[0] === "run" || route[0] === "split"} startMin={route[0] === "split"} /></ErrorBoundary>}
       <div className="scanlines" />
     </div>
   );

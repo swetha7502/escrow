@@ -2,6 +2,7 @@ import { useBackend, useRoute } from "./lib/hooks";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ScenarioPage } from "./views/ScenarioPage";
 import { RunPage } from "./views/RunPage";
+import { SplitView } from "./views/SplitView";
 
 function Topbar({ route }: { route: string[] }) {
   const b = useBackend();
@@ -35,6 +36,7 @@ export function App() {
   const route = useRoute();
   let view;
   if (route[0] === "run" && route[1] && (route[2] === "baseline" || route[2] === "escrow")) view = <RunPage key={route.join("/") + location.hash} scenario={route[1]} arm={route[2]} />;
+  else if (route[0] === "split" && route[1]) view = <SplitView key={route.join("/") + location.hash} scenario={route[1]} />;
   else view = <ScenarioPage />;
   return (
     <div className="app">

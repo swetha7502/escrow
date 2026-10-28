@@ -55,3 +55,8 @@ badge after: CACHED RUN · rec. Oct 26, 02:20 PM / outcome: LEAKED · 3 effects
 
 * Live split view: designed to run baseline, then escrow, one after the other (one sandbox). Not shot live, to save runs; the cached lockstep is shown.
 * Nano never appears in the HUD with calls: the pipeline doesn't call Nano yet (STATUS, Next 4).
+
+## 11: static build, no backend (Vercel simulation, 2026-10-28)
+`ui/dist` was served as plain static files on 127.0.0.1:4180 (`python3 -m http.server`; `/api/health` → 404, as on Vercel).
+- `11-static-landing.png`: header shows **OFFLINE · CACHED REPLAYS**, and the scenario cards show the recorded verdicts.
+- `11-static-k1-split.png`: K1 side by side, fully replayed from the bundle. The baseline leaks 3 effects to `classmate@gmail.example`; escrow holds them and blocks at commit (fingerprint, Nano-labeled read), so 0 are delivered. Both arms are flagged CACHED RUN.

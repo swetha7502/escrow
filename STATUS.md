@@ -108,5 +108,7 @@ Screenshots for every view are in `evidence/ui/` (index: `evidence/ui/README.md`
 
 ## Next
 
-1. Cloudflare Tunnel for the control API/WebSocket (needs your `cloudflared` login), and the static UI on Vercel (needs your login).
-2. Later: let the user **edit** an Ultra contract draft before approving (today it's approve/reject).
+1. **You:** install `cloudflared` and log in (`infra/cloudflared/README.md` §1–2), then `infra/cloudflared/serve-public.sh --check`. The control server currently on 8790 was started **without** the access token; stop it before going public, and the launcher will restart it with the token.
+2. **You:** `npx vercel@64.0.2 login` and deploy `ui/dist` (`ui/README.md`, "Deploy to Vercel"). The cached-only build works with no backend.
+3. **You:** check the Token Factory credit balance, then raise the proxy cap for the $3 demo reserve (`node proxy/cli.ts set-cap <usd>`).
+4. Code freeze at end of 2026-10-28. README, license, video and Devpost on 10-29.

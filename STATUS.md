@@ -77,7 +77,7 @@ Screenshots for every view are in `evidence/ui/` (index: `evidence/ui/README.md`
 * **Deterministic:** egress lockdown (OpenShell, outside the agent); spend cap (host proxy, outside the sandbox); tier-1 exact and canary match including base64/hex; all-or-nothing commit; host-side re-verification of every outbox record.
 * **Deterministic algorithm, best-effort coverage:** tier-2 fuzzy canary (edit distance ≤ 25%). Measured false-positive margin: nearest benign text is at distance 7–8 against a budget of 3–4.
 * **Best-effort (now built):** paraphrase + cross-message leaks via the Nemotron Super judge (R5). Caught the "extra exam time" paraphrase and the split-score scenario; observed occasional misses on pure paraphrase (~1/5 before prompt tuning) — the deterministic tiers remain the guarantee, and judge failure/timeout blocks (fail closed).
-* **Still not caught:** short generic values (grade letters alone); a canary deliberately **split with filler between the halves** (session-join reconstructs only contiguous fragments) — documented in `lib/escrow/escrow.test.ts` and `evidence/step5-scenarios.md`.
+* **Known failure modes:** `FAILURE_MODES.md`, each reproducible with `node scripts/failure-modes.ts [--judge]`. Against the full stack, 3 of 7 leak attacks get through: a canary split with filler (FM1), a canary garbled past the fuzzy budget (FM5), and sensitive free text that isn't a record field (FM6). The judge catches a bare or spelled-out letter grade, a differencing attack, and an embedded "say no leak" instruction (4/4 runs each, best effort). A Token Factory outage false-blocks (fail-closed).
 
 ## Things found along the way (also in `feedback.md`)
 
@@ -108,6 +108,5 @@ Screenshots for every view are in `evidence/ui/` (index: `evidence/ui/README.md`
 
 ## Next
 
-1. `FAILURE_MODES.md`: the remaining known gaps, each with a reproducible example ("attacking our own system").
-2. Cloudflare Tunnel for the control API/WebSocket (needs your `cloudflared` login), and the static UI on Vercel (needs your login).
-3. Later: let the user **edit** an Ultra contract draft before approving (today it's approve/reject).
+1. Cloudflare Tunnel for the control API/WebSocket (needs your `cloudflared` login), and the static UI on Vercel (needs your login).
+2. Later: let the user **edit** an Ultra contract draft before approving (today it's approve/reject).

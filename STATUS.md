@@ -91,12 +91,12 @@ Screenshots for every view are in `evidence/ui/` (index: `evidence/ui/README.md`
 ## Needs your attention (manual)
 
 1. **Nebius account-level spend limit or alert.** The proxy can't see usage of the key from anywhere else (console playground, other machines). If Token Factory offers one, set it at or below your promo credit amount.
-2. **Host port `0.0.0.0:18789`.** That's NemoClaw's OpenClaw dashboard forward, token-protected. It's inbound, not a sandbox exit, but you may want it loopback-only on the demo machine.
-3. **Git identity:** I set a repo-local `user.name=swetha`, `user.email=smv5809@psu.edu` so commits would work. Change it if you prefer something else.
-4. **Third-party notice:** accepted on your instruction for the NemoClaw install.
+2. **Git identity:** I set a repo-local `user.name=swetha`, `user.email=smv5809@psu.edu` so commits would work. Change it if you prefer something else.
+3. **Third-party notice:** accepted on your instruction for the NemoClaw install.
 
 ## Operational notes
 
+* Loopback check: `scripts/assert-loopback.sh` (18789 dashboard, 8000 proxy, 8790 API; exit 1 if any is beyond 127.0.0.1). `scripts/up.sh` runs it last. Proof: `evidence/housekeeping.md`.
 * Restart the proxy: `proxy/run.sh`. Health: `curl localhost:8000/healthz`.
 * UI: `cd ui && npm run build && npx vite preview` → http://127.0.0.1:4173 (proxies `/api` + `/events` to the control server). Screenshots: `node ui/scripts/shots.ts <name> <hash-path> [--until text]`. After new live transcripts: `npm run bundle-runs` in `ui/`.
 * Control API + event stream: `node harness/server.ts` (127.0.0.1:8790). Record the stream: `node harness/ws-record.ts out.jsonl`.
@@ -108,7 +108,6 @@ Screenshots for every view are in `evidence/ui/` (index: `evidence/ui/README.md`
 
 ## Next
 
-1. Port 18789 loopback-only, asserted by `scripts/up.sh`.
-2. `FAILURE_MODES.md`: the remaining known gaps, each with a reproducible example ("attacking our own system").
-3. Cloudflare Tunnel for the control API/WebSocket (needs your `cloudflared` login), and the static UI on Vercel (needs your login).
-4. Later: let the user **edit** an Ultra contract draft before approving (today it's approve/reject).
+1. `FAILURE_MODES.md`: the remaining known gaps, each with a reproducible example ("attacking our own system").
+2. Cloudflare Tunnel for the control API/WebSocket (needs your `cloudflared` login), and the static UI on Vercel (needs your login).
+3. Later: let the user **edit** an Ultra contract draft before approving (today it's approve/reject).

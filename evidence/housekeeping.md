@@ -127,3 +127,37 @@ $ node scripts/escrow-call.ts nano
 
 Unit tests: `proxy/proxy.test.ts` ("stop status is configurable: 503 + Retry-After, still cached mode, upstream
 never called"; message avoids billing/overloaded phrases). `npm test`.
+
+## 2026-10-28: loopback asserted by `up.sh` (port 18789 + the proxy + the control API)
+
+`scripts/assert-loopback.sh` checks ports 18789 (OpenClaw dashboard forward), 8000 (spend proxy) and 8790 (control API/WS). Any listener not bound to `127.0.0.1` / `[::1]` makes it exit 1 with `!! LOOPBACK ASSERTION FAILED`. `scripts/up.sh` now ends with step 8: it re-applies `dashboard-loopback.sh`, then asserts. It runs **after** the gateway restarts in steps 5–6, because a restart can bring back NemoClaw's `0.0.0.0` forward. Before this change, step 4 rebound the port and a later restart could have undone it.
+
+Failure path, checked against recorded `ss` listings (`scripts/fixtures/`). Binding a real stand-in to `0.0.0.0` was refused by the agent's safety check, correctly, since it would have exposed a port:
+```
+$ ESCROW_SS_FIXTURE=scripts/fixtures/ss-dashboard-exposed.txt scripts/assert-loopback.sh
+FAIL :18789 bound to 0.0.0.0:18789 (must be 127.0.0.1)
+ok   :8000 bound to 127.0.0.1:8000
+ok   :8790 no listener
+!! LOOPBACK ASSERTION FAILED: a port above is reachable from the network. For 18789 run scripts/dashboard-loopback.sh.
+exit 1
+
+$ ESCROW_SS_FIXTURE=scripts/fixtures/ss-api-exposed-v6.txt scripts/assert-loopback.sh
+ok   :18789 bound to 127.0.0.1:18789
+ok   :8000 no listener
+FAIL :8790 bound to [::]:8790 (must be 127.0.0.1)
+!! LOOPBACK ASSERTION FAILED: ...
+exit 1
+```
+
+Live, after re-applying the binding:
+```
+$ scripts/dashboard-loopback.sh
+LISTEN 0      128         127.0.0.1:18789      0.0.0.0:*    users:(("openshell",pid=91072,fd=10))
+$ scripts/assert-loopback.sh
+ok   :18789 bound to 127.0.0.1:18789
+ok   :8000 bound to 127.0.0.1:8000
+ok   :8790 bound to 127.0.0.1:8790
+exit 0
+curl http://127.0.0.1:18789/ → HTTP 200
+curl http://172.17.38.108:18789/ (WSL eth0) → HTTP 000 (connection refused)
+```

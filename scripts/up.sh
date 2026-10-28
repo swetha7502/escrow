@@ -3,6 +3,7 @@
 #   1. spend proxy (host, 127.0.0.1:8000)   2. sandbox running   3. egress policy re-applied
 #   4. dashboard forward on loopback          5. OpenClaw provider backoff cleared
 #   6. escrow-hook plugin loaded              7. course data + verification policy seeded
+#   8. loopback re-asserted last (a gateway restart in 5/6 can bring back NemoClaw's 0.0.0.0 forward): exits 1 if any port is exposed
 set -euo pipefail
 cd "$(dirname "$0")/.."
 SANDBOX="${SANDBOX:-escrow}"
@@ -44,6 +45,10 @@ fi
 
 say "7. course data + verification policy"
 if ! nemoclaw "$SANDBOX" exec --no-stdin -- test -f /sandbox/.escrow/policy.json < /dev/null 2>/dev/null; then node scripts/seed-sandbox.ts; else echo "already seeded"; fi
+
+say "8. loopback (re-applied after any gateway restart above, then asserted)"
+scripts/dashboard-loopback.sh
+scripts/assert-loopback.sh
 
 say "summary"
 ss -ltnp 2>/dev/null | grep -E ':(8000|8080|18789) ' | awk '{print $4, $6}'

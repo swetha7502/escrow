@@ -74,6 +74,9 @@ async function health() {
 }
 
 async function liveUnavailable(): Promise<string | null> {
+  // test hook (scripts/check-run-race.ts): stand in for the slow sandbox health probe
+  const delay = Number(process.env.ESCROW_PREFLIGHT_DELAY_MS ?? 0);
+  if (delay) await new Promise((r) => setTimeout(r, delay));
   const off = liveRunsDisabled();
   if (off) return off;
   const h = await health();
@@ -109,12 +112,21 @@ async function startRun(scenario: string, arm: Arm, mode: "auto" | "live" | "cac
   if (!spec) throw Object.assign(new Error(`unknown scenario ${scenario}`), { status: 404 });
   if (arm !== "baseline" && arm !== "escrow") throw Object.assign(new Error("arm must be baseline or escrow"), { status: 400 });
   if (active && !["done", "failed"].includes(active.status)) throw Object.assign(new Error(`run ${active.id} is in progress (the sandbox runs one scenario at a time)`), { status: 409 });
-  let reason = mode === "cached" ? "cached run requested" : mode === "auto" ? await liveUnavailable() : null;
-  if (mode === "live") { const why = await liveUnavailable(); if (why) throw Object.assign(new Error(`live run unavailable: ${why}`), { status: 503 }); }
-  if (reason && !hasCached(scenario, arm)) throw Object.assign(new Error(`live run unavailable (${reason}) and no cached run for ${scenario}/${arm}`), { status: 503 });
-  const rec: RunRec = { id: `run-${randomUUID().slice(0, 8)}`, scenario, arm, live: !reason, cachedReason: reason ?? undefined, status: "starting", startedAt: new Date().toISOString() };
-  runs.set(rec.id, rec);
+  // Claim the single run slot BEFORE any await: otherwise two requests can both pass the check above and drive the
+  // one sandbox at once (seen live: the second run's mode switch flipped the first run into escrow mode).
+  const rec: RunRec = { id: `run-${randomUUID().slice(0, 8)}`, scenario, arm, live: false, status: "starting", startedAt: new Date().toISOString() };
   active = rec;
+  let reason: string | null;
+  try {
+    reason = mode === "cached" ? "cached run requested" : mode === "auto" ? await liveUnavailable() : null;
+    if (mode === "live") { const why = await liveUnavailable(); if (why) throw Object.assign(new Error(`live run unavailable: ${why}`), { status: 503 }); }
+    if (reason && !hasCached(scenario, arm)) throw Object.assign(new Error(`live run unavailable (${reason}) and no cached run for ${scenario}/${arm}`), { status: 503 });
+  } catch (e) {
+    if (active === rec) active = null; // release the slot
+    throw e;
+  }
+  rec.live = !reason; rec.cachedReason = reason ?? undefined;
+  runs.set(rec.id, rec);
   bus.publish({ type: "run_started", runId: rec.id, scenario, arm, live: rec.live, cached: !rec.live, cachedReason: rec.cachedReason, desc: spec.desc, leaks: spec.leaks });
 
   void (async () => {

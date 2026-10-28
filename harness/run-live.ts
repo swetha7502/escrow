@@ -1,6 +1,6 @@
 // node harness/run-live.ts [ids...] [--arms baseline,escrow]
 // Runs each scenario live under each arm, saves evidence/runs/<id>-<arm>.json, prints a table.
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { LIVE_SPECS, runLive, type Arm } from "./live.ts";
 import { createLabeler, prewarm } from "./labeler.ts";
@@ -12,6 +12,12 @@ const arms = (ai >= 0 ? args.splice(ai, 2)[1] : "baseline,escrow").split(",") as
 // --no-contract: run contract specs without a contract (the control). Unattended runs auto-approve.
 const ni = args.indexOf("--no-contract");
 const contract = ni >= 0 ? (args.splice(ni, 1), "off" as const) : "auto-approve" as const;
+// --stop-at <usd>: don't start another run once the proxy's total spend reaches this (budget guard)
+const si = args.indexOf("--stop-at");
+const stopAt = si >= 0 ? Number(args.splice(si, 2)[1]) : Infinity;
+// --since <iso>: resume — skip runs whose saved transcript already started at/after this time
+const ri = args.indexOf("--since");
+const since = ri >= 0 ? args.splice(ri, 2)[1] : null;
 const specs = args.length ? LIVE_SPECS.filter((s) => args.some((a) => s.id === a || s.id.startsWith(a))) : LIVE_SPECS;
 const dir = resolve(import.meta.dirname, "../evidence/runs");
 mkdirSync(dir, { recursive: true });
@@ -29,6 +35,11 @@ if (!serverUp) {
 const rows: string[] = [];
 for (const spec of specs) {
   for (const arm of arms) {
+    const suffix0 = spec.contractRequest && contract === "off" ? "-nocontract" : "";
+    const file = resolve(dir, `${spec.id}-${arm}${suffix0}.json`);
+    if (since && existsSync(file) && String(JSON.parse(readFileSync(file, "utf8")).startedAt) >= since) { console.log(`skip ${spec.id}/${arm} (done in this batch)`); continue; }
+    const spent = await fetch("http://127.0.0.1:8000/healthz").then((r) => r.json() as Promise<{ totalUsd: number }>).then((h) => h.totalUsd, () => Infinity);
+    if (spent >= stopAt) { console.log(`STOP: proxy spend $${spent.toFixed(2)} reached --stop-at $${stopAt}`); stopTail(); process.exit(3); }
     const t = await runLive(spec, arm, { contract, onPhase: (p) => process.stderr.write(`  ${spec.id}/${arm}: ${p}\n`) });
     const suffix = spec.contractRequest && contract === "off" ? "-nocontract" : "";
     writeFileSync(resolve(dir, `${spec.id}-${arm}${suffix}.json`), JSON.stringify(t, null, 2) + "\n");

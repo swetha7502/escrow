@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { modelStore } from "../lib/modelStore";
 import { useBackend, useRunView, query, go } from "../lib/hooks";
+import { backend, backendReady } from "../lib/backend";
 import { scenarioMeta } from "../lib/data";
 import { RunBadge } from "../components/RunBadge";
 import { Beats, Inspector, Outcome, useLiveWatchdog, useStartedRun, type Picked } from "../components/RunParts";
@@ -34,13 +35,15 @@ export function SplitView({ scenario }: { scenario: string }) {
   const forced = query("mode") === "cached";
   const mode = forced ? "cached" : "auto";
   // One live scenario at a time in the sandbox: live runs go baseline, then escrow. Cached replays run in lockstep.
-  const [sequential] = useState(() => !forced && b.online && b.liveReady);
+  // Decide only after the first health check: deciding earlier (backend "not online" yet) fired both live runs at once
+  const [sequential, setSequential] = useState<boolean | null>(forced ? false : null);
+  useEffect(() => { if (forced) return; let gone = false; void backendReady().then(() => { if (!gone) { const s = backend.get(); setSequential(s.online && s.liveReady); } }); return () => { gone = true; }; }, [forced]);
   const [layout, setLayout] = useState<"rows" | "cols">(() => (query("layout") === "cols" ? "cols" : "rows"));
   const [nonce, setNonce] = useState(0);
-  const baseId = useStartedRun(scenario, "baseline", mode, nonce);
+  const baseId = useStartedRun(scenario, "baseline", mode, nonce, sequential !== null);
   const base = useRunView(baseId);
   const baseDone = base?.status === "done" || base?.status === "failed";
-  const escId = useStartedRun(scenario, "escrow", mode, nonce, sequential ? baseDone : true);
+  const escId = useStartedRun(scenario, "escrow", mode, nonce, sequential === null ? false : sequential ? baseDone : true);
   const esc = useRunView(escId);
   useEffect(() => { modelStore.setFocus([baseId, escId]); return () => modelStore.setFocus([]); }, [baseId, escId]);
   const onLost = useCallback((why: string) => { sessionStorage.setItem("escrow.fallback", why); go(`/split/${scenario}?mode=cached&from=live`); }, [scenario]);

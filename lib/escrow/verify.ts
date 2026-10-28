@@ -193,10 +193,30 @@ export function sessionCanaryCheck(policy: Policy, effects: OutboundEffect[]): V
 
 /** Numbers in a record's sensitive values that, for a labeled-sensitive read, count as values on their own:
  *  score numerators ("61" of 61/100) and birth years. Short generic numbers are excluded. */
+/** Nano names fields inconsistently ("dob" vs "date_of_birth", "grade" vs "midterm"), so map them onto the record's
+ *  own field keys. A field name we can't map means "tighten every field" (labels may only ever add catches). */
+const FIELD_SYNONYMS: Record<string, string[]> = {
+  grade: ["grade", "score", "midterm", "exam", "mark", "result", "points"],
+  dob: ["dob", "birth", "born", "birthday", "age"],
+  accommodation: ["accommodation", "disability", "ods", "extended", "arrangement"],
+};
+export function labeledFieldKeys(rec: StudentRecord, labelFields: string[]): string[] {
+  const keys = Object.keys(rec.sensitive);
+  if (!labelFields.length) return keys;
+  const out = new Set<string>();
+  for (const f of labelFields.map((x) => x.toLowerCase())) {
+    const k = keys.find((key) => f.includes(key.toLowerCase()) || key.toLowerCase().includes(f) || (FIELD_SYNONYMS[key] ?? []).some((syn) => f.includes(syn)));
+    if (!k) return keys; // unknown name: tighten everything rather than risk skipping a field
+    out.add(k);
+  }
+  return [...out];
+}
+
 export function labeledNumbers(rec: StudentRecord, fields: string[]): { field: string; value: string }[] {
   const out: { field: string; value: string }[] = [];
+  const keys = labeledFieldKeys(rec, fields);
   for (const [field, value] of Object.entries(rec.sensitive)) {
-    if (fields.length && !fields.some((f) => field.toLowerCase().includes(f) || f.includes(field.toLowerCase()))) continue;
+    if (!keys.includes(field)) continue;
     for (const m of value.matchAll(SCORE_RE)) { const n = m[0].split("/")[0].trim(); if (n.length >= 2) out.push({ field, value: n }); }
     for (const m of value.matchAll(DOB_RE)) out.push({ field, value: m[0].slice(0, 4) });
   }

@@ -30,6 +30,8 @@ export interface RunView {
   beats: Beat[];
   log: UiEvent[];
   finished?: UiEvent;
+  /** Reviewed: which effects of this (recorded) run actually carried record data. Live runs: unknown → scenario label */
+  leakedIds?: string[];
   /** the escrow tool call whose effect event is next */
   pendingCall?: UiEvent;
 }
@@ -76,6 +78,7 @@ export function apply(v: RunView, e: UiEvent): RunView {
   switch (e.type) {
     case "run_started": {
       s.scenario = String(e.scenario ?? s.scenario); s.arm = (e.arm as Arm) ?? s.arm; s.leaks = !!e.leaks; s.desc = String(e.desc ?? "");
+      s.leakedIds = Array.isArray(e.leakedEffectIds) ? (e.leakedEffectIds as string[]) : undefined;
       s.live = !!e.live; s.cached = !e.live; s.cachedReason = e.cachedReason as string | undefined; s.recordedAt = e.recordedAt as string | undefined;
       s.status = "running";
       beat("info", "▶", `${e.live ? "Live" : "Cached"} run started`, e.live ? "real OpenClaw agent in the NemoClaw sandbox" : `replaying a recorded live run${e.cachedReason ? ` · ${e.cachedReason}` : ""}`);
@@ -137,7 +140,7 @@ export function apply(v: RunView, e: UiEvent): RunView {
       const isBaseline = e.type === "baseline_release";
       const released = isBaseline && !!e.released;
       const viol = (e.violations as { rule: string }[] | undefined) ?? [];
-      const leak = isBaseline && released && s.leaks && !afterBlock();
+      const leak = isBaseline && released && (s.leakedIds ? s.leakedIds.includes(String(e.effectId)) : s.leaks && !afterBlock());
       const x: Effect = { id: String(e.effectId), kind: String(e.kind ?? (call?.tool === "escrow_write_external" ? "write_external" : "send_email")), to, target, subject: p.subject as string, body: String(p.body ?? p.content ?? ""),
         status: isBaseline ? (released ? "in_outbox" : "blocked_filter") : "held", attempt: attemptNo(), leak, rule: viol[0]?.rule, reason: viol[0] ? ruleLabel(viol[0].rule) : undefined, events: [...(call ? [call] : []), e] };
       putEffect(x);

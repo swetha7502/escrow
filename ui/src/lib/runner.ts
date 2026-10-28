@@ -53,7 +53,7 @@ function startLocal(scenario: string, arm: Arm, reason: string, variant = "defau
 
   void (async () => {
     await sleep(0); // let the caller subscribe first
-    emit({ type: "run_started", scenario, arm, live: false, cachedReason: reason, desc: spec?.desc, leaks: spec?.leaks, recordedAt: rec?.recordedAt, source: rec?.file });
+    emit({ type: "run_started", scenario, arm, live: false, cachedReason: reason, desc: spec?.desc, leaks: spec?.leaks, recordedAt: rec?.recordedAt, source: rec?.file, leakedEffectIds: (rec?.outcome as { leakedEffectIds?: string[] } | undefined)?.leakedEffectIds });
     if (!rec) { emit({ type: "run_failed", error: `no cached run for ${scenario}/${arm}` }); return; }
     let prevT = 0;
     let contractId: string | null = null;

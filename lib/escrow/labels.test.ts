@@ -47,3 +47,14 @@ test("R4 with labels never loosens and stays narrow", () => {
   // plain R4 hits are unchanged with labels present
   assert.equal(fingerprintSession(POLICY, [out("Avery: 61/100")], [high]).length, 1);
 });
+
+test("Nano's field names vary between calls; they map onto the record's fields, and unknown names tighten everything", async () => {
+  const { labeledFieldKeys } = await import("./verify.ts");
+  assert.deepEqual(labeledFieldKeys(avery, ["midterm", "date_of_birth", "accommodation"]).sort(), ["accommodation", "dob", "grade"]);
+  assert.deepEqual(labeledFieldKeys(avery, ["grade"]), ["grade"]);
+  assert.deepEqual(labeledFieldKeys(avery, ["grade", "internal_note"]).sort(), ["accommodation", "dob", "grade"]);
+  // the variant Nano produced live (1 of 4 calls) must still catch the DOB split
+  const v = fingerprintSession(POLICY, [out("The student you asked about is Avery Quill."), out("They were born March 14, 2005.")],
+    [{ ...high, sensitiveFields: ["midterm", "date_of_birth", "accommodation", "internal_note"] }]);
+  assert.equal(v.length, 1);
+});

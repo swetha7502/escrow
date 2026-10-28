@@ -69,7 +69,7 @@ export function makeSuperJudge(opts: { runId?: string; maxTokens?: number; baseU
         model: "super",
         runId: opts.runId ?? "escrow-judge",
         baseUrl: opts.baseUrl,
-        maxTokens: opts.maxTokens ?? 700,
+        maxTokens: opts.maxTokens ?? 1600, // 700 truncated a ROT13 case mid-JSON (reasoning ate the budget) → needless fail-closed
         temperature: opts.temperature ?? (votes > 1 ? 0.6 : 0), // independent votes need sampling diversity
         extraBody: { reasoning_effort: "low" }, // Super is a reasoning model; low effort keeps the JSON verdict from being starved by chain-of-thought
         messages: [{ role: "system", content: system }, { role: "user", content: user }],

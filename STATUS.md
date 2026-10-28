@@ -32,7 +32,7 @@ Spend so far: **$8.52** (phase 2 ~$2.74, UI ~$0.22, phase 4 live batch of 84 run
 | 4 | Killer scenario: agent spreads a score across 3 messages, and the "extra exam time" paraphrase — baseline leaks both, escrow blocks at commit | `evidence/step4-killer.md` |
 | 5 | 10 scenarios × both arms: **escrow correct on all 10**, baseline leaks 4 | `evidence/step5-scenarios.md` |
 
-`npm test`: **88 passing** (2026-10-27, after phase 4). `npm run typecheck` is clean, with the plugin checked against the real `openclaw@2026.9.2` types.
+`npm test`: **89 passing** (2026-10-28). `npm run typecheck` is clean, with the plugin checked against the real `openclaw@2026.9.2` types.
 
 ### Phase 2 (2026-10-26): live agent end to end, contract, skills, event stream
 
@@ -47,14 +47,14 @@ Spend so far: **$8.52** (phase 2 ~$2.74, UI ~$0.22, phase 4 live batch of 84 run
 
 ### Phase 4 (2026-10-27): Nano labels, ~40 scenarios, metrics, hosting hardening
 
-Hard budget: the proxy cap is **$12** (`node proxy/cli.ts set-cap 12`, set 2026-10-27, was $11), so the proxy itself stops all spending there. **Before judging, raise it to $15** (`node proxy/cli.ts set-cap 15`) to release the $3 demo reserve.
+Hard budget: the proxy cap is **$12** (`node proxy/cli.ts set-cap 12`, set 2026-10-27, was $11), so the proxy itself stops all spending there. The $3 demo reserve above $12 is released by hand before judging (you check the Token Factory credit balance, then run `node proxy/cli.ts set-cap <usd>`); experiments never raise it.
 
 | Step | What | Proof |
 |---|---|---|
 | 1 | **Nemotron Nano read labels → R4.** A host labeler labels each read (type, sensitivity, students, fields) and writes the label into Escrow's sandbox state; R4 tightens for high-sensitivity reads (bare score + identity). Live K1 is now a **deterministic R4 catch** (labels 4/4) instead of judge-only. The HUD shows real Nano calls. Nano took 36–117 s per call this afternoon, so labels are cached by content hash with a background re-label | `evidence/p7-nano-labels.md` |
 | 2 | **42 scenarios**: 27 Ultra-generated (attacks + clean, labels by construction, validated) on top of the 15 hand-written | `evidence/p8-scenarios.md` |
-| 4 | **200-task pipeline-only run** (no agent): leak rate 47.7% → **0%**; false blocks 1/81 (a Token Factory 502, fail-closed), **0/81 on the re-run after the fixes below** | `evidence/p10-pipeline-200.md`, `evidence/p11-live-agent-42.md` |
-| 5 | **Live agent, all 42 scenarios × both arms (84 runs)**: baseline leaks 14/24, escrow **0/24**; false blocks 0/14 in both arms; agent-composed leaks reviewed by hand (`evidence/live-review.json`). Fixed along the way: run-slot race (two requests could both start), judge max_tokens truncation, Nano field-name mapping. $3.62 | `evidence/p11-live-agent-42.md` |
+| 4 | **200-task pipeline-only run** (no agent): leaks 52/109 baseline → **0/109** escrow; false blocks 1/81 (a Token Factory 502, fail-closed), **0/81 on the re-run after the fixes below** | `evidence/p10-pipeline-200.md`, `evidence/p11-live-agent-42.md` |
+| 5 | **Live agent, all 42 scenarios × both arms (84 runs)**: **0/24 leaks vs baseline 14/24** (95% upper bound for 0/24 about 12%); false blocks 0/14 in both arms; agent-composed leaks reviewed by hand (`evidence/live-review.json`). Fixed along the way: run-slot race (two requests could both start), judge max_tokens truncation, Nano field-name mapping. $3.62 | `evidence/p11-live-agent-42.md` |
 | 6 | **Hosting hardening**: shared access token (never bundled), per-IP rate limits, one run at a time + approval timeout, live-runs off switch; Cloudflare Tunnel config | `evidence/p12-hosting.md` |
 
 ### Phase 3 (2026-10-27): the UI (`ui/`, React + Vite + React Flow + canvas particles + Framer Motion)
@@ -82,6 +82,7 @@ Screenshots for every view are in `evidence/ui/` (index: `evidence/ui/README.md`
 ## Things found along the way (also in `feedback.md`)
 
 * LLM-garbled base64 slipped past exact match (live S3). That drove tier 2.
+* `apply_patch` is exposed to Nemotron too: OpenClaw's help text says OpenAI/Codex, but the code has no provider check (`allowModels` empty → every model). Blocked by the hook's allowlist regardless, now with a message pointing to write/edit.
 * OpenClaw re-runs a plugin's `register()` on every agent run, so plugin state must be a process singleton.
 * The gradebook false positive led to `trustedTargets` (R2), with typed recipients so there's no prefix-trust bypass.
 * `inference.local` L7 path rules don't restrict recognized inference paths. The proxy is the real path allowlist.
@@ -107,8 +108,7 @@ Screenshots for every view are in `evidence/ui/` (index: `evidence/ui/README.md`
 
 ## Next
 
-1. Close `apply_patch` (route it through the shadow FS or block it in the hook).
-2. Port 18789 loopback-only, asserted by `scripts/up.sh`.
-3. `FAILURE_MODES.md`: the remaining known gaps, each with a reproducible example ("attacking our own system").
-4. Cloudflare Tunnel for the control API/WebSocket (needs your `cloudflared` login), and the static UI on Vercel (needs your login).
-5. Later: let the user **edit** an Ultra contract draft before approving (today it's approve/reject).
+1. Port 18789 loopback-only, asserted by `scripts/up.sh`.
+2. `FAILURE_MODES.md`: the remaining known gaps, each with a reproducible example ("attacking our own system").
+3. Cloudflare Tunnel for the control API/WebSocket (needs your `cloudflared` login), and the static UI on Vercel (needs your login).
+4. Later: let the user **edit** an Ultra contract draft before approving (today it's approve/reject).

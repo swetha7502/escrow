@@ -7,7 +7,7 @@ import { makeSuperJudge } from "../../lib/escrow/judge.ts";
 import { SANDBOX_INFERENCE_URL } from "../../lib/tf-client.ts";
 import { JudgeUnavailableError } from "../../lib/escrow/txn.ts";
 import type { Policy } from "../../lib/escrow/verify.ts";
-import { logLine, type ToolCallEvent, type ToolCallCtx } from "./decide.ts";
+import { blockReasonFor, logLine, type ToolCallEvent, type ToolCallCtx } from "./decide.ts";
 import { contractViolation, recordIdOf, type ContractAct, type TaskContract } from "../../lib/escrow/contract.ts";
 import { labelable, labelSessionKey, type ReadLabel } from "../../lib/escrow/labels.ts";
 import { classify, absPath, isProtected, inWorkspace, pathKey, WORKSPACE_ROOT, ESCROW_STATE } from "./policy.ts";
@@ -122,7 +122,7 @@ export default definePluginEntry({
         block(`outside the approved task contract: ${breach}.`);
         note = `contract ${contract?.id ?? "none"}`;
       } else if (cls === "block") {
-        block(`tool "${ev.toolName}" is not allowed in this sandbox. Use escrow_send_email / escrow_write_external for side effects.`);
+        block(blockReasonFor(ev.toolName));
       } else if (cls === "read" && abs) {
         if (abs.startsWith(ESCROW_STATE)) block("Escrow state is not readable.");
         else {

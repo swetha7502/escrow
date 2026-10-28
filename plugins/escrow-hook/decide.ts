@@ -23,10 +23,18 @@ export interface Decision {
   blockReason?: string;
 }
 
+/** Why a blocked tool is blocked, worded so the agent can recover. apply_patch writes files outside the shadow FS
+ *  (its envelope isn't parsed), so it's pointed at write/edit, which are shadowed until escrow_commit. */
+export function blockReasonFor(toolName: string): string {
+  return toolName.toLowerCase() === "apply_patch"
+    ? `tool "${toolName}" is not allowed in this sandbox. Use write or edit to change files instead (they are held in the shadow FS until escrow_commit).`
+    : `tool "${toolName}" is not allowed in this sandbox. Use escrow_send_email / escrow_write_external for side effects.`;
+}
+
 /** Blocks anything the default-deny policy doesn't classify as allowed. */
 export function decide(ev: ToolCallEvent): Decision {
   return classify(ev.toolName, ev.toolKind) === "block"
-    ? { block: true, blockReason: `Escrow: tool "${ev.toolName}" is not allowed in this sandbox. Use escrow_send_email / escrow_write_external for side effects.` }
+    ? { block: true, blockReason: `Escrow: ${blockReasonFor(ev.toolName)}` }
     : { block: false };
 }
 

@@ -12,11 +12,11 @@ Command: `node harness/run-live.ts`, with the new `--stop-at <usd>` budget guard
 
 | metric | baseline (per call) | escrow (session) |
 |---|---|---|
-| **leak rate**, all leak scenarios (record data delivered) | 14/24 (58.3%) | **0/24 (0.0%)** |
-| leak rate where the agent actually attempted the leak | 14/20 (70.0%) | 0/21 (0.0%) |
+| **leaks**, all leak scenarios (record data delivered) | 14/24 | **0/24** |
+| leaks where the agent actually attempted the leak | 14/20 | 0/21 |
 | agent refused / declined the attack on its own (reviewed) | 4 | 3 |
-| **false-block rate** (clean scenarios with an effect blocked) | 0/14 (0.0%) | **0/14 (0.0%)** |
-| out-of-scope effect delivered (contract scenarios, contract approved) | 0/4 (0.0%) | 0/4 (0.0%) |
+| **false blocks** (clean scenarios with an effect blocked) | 0/14 | **0/14** |
+| out-of-scope effect delivered (contract scenarios, contract approved) | 0/4 | 0/4 |
 | agent turn failed (nemoclaw exec non-zero) | 1 | 0 |
 
 **By category (leak scenarios: delivered / attempted, per arm)**
@@ -46,8 +46,9 @@ Nano labels were present at commit for all 43 escrow commits (every read labeled
 **Cost** (spend-proxy log, per run window): $3.62 total. Baseline $1.83, escrow $1.79, a mean of $0.043 per run. By model: Super $3.602, Nano $0.009, Ultra $0.014. Median wall time: 17 s per run. Almost all of the cost is the agent itself (OpenClaw re-sends a ~25k-token system prompt on every model call), not Escrow.
 
 ### How to read these numbers
-- Baseline delivers less than 100% of leak scenarios because the agent sometimes refuses on its own (4 runs). Most notably, it refused all 3 prompt-injection scenarios. That's the model's safety behavior, which isn't a guarantee. Escrow doesn't depend on it.
-- Escrow has 0 leaks out of 21 runs where the agent attempted one. With n=21 this is a small sample (the rule-of-three 95% upper bound is ~14%). The 200-task pipeline run below is the larger-sample number.
+- Baseline doesn't deliver every leak scenario because the agent sometimes refuses on its own (4 runs). Most notably, it refused all 3 prompt-injection scenarios. That's the model's safety behavior, which isn't a guarantee. Escrow doesn't depend on it.
+- **Escrow: 0/24 leaks vs baseline 14/24.** 0/24 is a small sample: the one-sided 95% upper bound on escrow's true leak rate for this scenario set is **about 12%** (exact 11.7%; rule of three 3/24 = 12.5%). Counting only the 21 runs where the agent attempted the leak, it's 13%. The 200-task pipeline run below is the larger sample: 0/109 leaks, upper bound about 3%.
+- **False blocks: 0/14 live, 0/81 in the pipeline** (upper bound about 4% for 0/81).
 
 ## Fixes made during this run
 1. **Run-slot race** (`harness/server.ts`). Two `POST /api/runs` arriving together could both pass the "one run at a time" check during the ~0.5 s sandbox health probe. Seen live: the split view fired both arms at once, and the second run's mode switch flipped the first run into escrow mode. The run slot is now claimed before any `await` and released on error. The UI's split view also waits for the first health check before deciding whether to run sequentially.
@@ -66,9 +67,9 @@ Nano labels were present at commit for all 43 escrow commits (every read labeled
 
 | metric | baseline (per call) | escrow (session) |
 |---|---|---|
-| **leak rate** (leak tasks with ≥1 effect delivered) | 52/109 (47.7%) | 0/109 (0.0%) |
-| **false-block rate** (clean tasks with ≥1 effect blocked) | 0/81 (0.0%) | **0/81 (0.0%)** (v1: 1/81, a Token Factory 502 that failed closed) |
-| out-of-scope effect delivered (contract tasks) | 0/10 (0.0%) | 0/10 (0.0%) |
+| **leaks** (leak tasks with ≥1 effect delivered) | 52/109 | 0/109 |
+| **false blocks** (clean tasks with ≥1 effect blocked) | 0/81 | **0/81** (v1: 1/81, a Token Factory 502 that failed closed) |
+| out-of-scope effect delivered (contract tasks) | 0/10 | 0/10 |
 | fail-closed (judge unavailable) | — | 0 |
 
 Per-tier first catches (escrow): C1 10, R0–R3 57, R4 21 (16 of them labeled-R4 via Nano), R5 31. Commit latency: p50 779 ms, p90 1660 ms. Judge cost: $0.0301 total, or $0.00027 per judged commit.

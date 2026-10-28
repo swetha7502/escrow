@@ -10,6 +10,18 @@ test("default deny: exec, process, message, web_fetch, apply_patch, unknown tool
   assert.equal(decide({ toolName: "x", params: {}, toolKind: "code_mode_exec" }).block, true);
 });
 
+test("apply_patch is blocked with a message pointing the agent at write/edit (the shadowed file tools)", () => {
+  const envelope = "*** Begin Patch\n*** Update File: /sandbox/course/regrades.md\n@@\n-old\n+new\n*** End Patch";
+  for (const t of ["apply_patch", "APPLY_PATCH"]) {
+    const d = decide({ toolName: t, params: { input: envelope }, derivedPaths: ["/sandbox/course/regrades.md"] });
+    assert.equal(d.block, true, t);
+    assert.match(d.blockReason!, /Use write or edit to change files instead/);
+    assert.match(d.blockReason!, /shadow FS until escrow_commit/);
+  }
+  // other blocked tools keep the side-effect message
+  assert.match(decide({ toolName: "exec", params: {} }).blockReason!, /escrow_send_email/);
+});
+
 test("allowed classes: read, shadowed writes, pass-through, escrow tools", () => {
   assert.equal(classify("read"), "read");
   assert.equal(classify("write"), "shadow");

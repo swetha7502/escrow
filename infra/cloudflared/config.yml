@@ -1,11 +1,15 @@
 # Cloudflare Tunnel for the Escrow control API + event stream (harness/server.ts on 127.0.0.1:8790).
 # NOT started. Fill in <TUNNEL_ID> and the hostname after `cloudflared tunnel create` (see README.md here).
+# Start it ONLY with infra/cloudflared/serve-public.sh (verifies token, origins, routing, loopback first).
 # WebSockets (/events) go through a tunnel with no extra settings.
 tunnel: <TUNNEL_ID>
 credentials-file: /home/swetha/.cloudflared/<TUNNEL_ID>.json
 
 ingress:
+  # Only the control API's routes: /api/* and the /events WebSocket (Go regexp on the path). Not the dashboard (18789),
+  # not the spend proxy (8000). Checked by infra/cloudflared/serve-public.sh before the tunnel starts.
   - hostname: escrow-api.<your-domain>
+    path: ^/(api/|events$)
     service: http://127.0.0.1:8790
     originRequest:
       connectTimeout: 10s

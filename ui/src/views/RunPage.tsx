@@ -7,6 +7,7 @@ import { Beats, Inspector, Outcome, useLiveWatchdog, useStartedRun, type Picked 
 import type { Arm } from "../lib/types";
 import { FlowMap } from "../flow/FlowMap";
 import { ContractPanel } from "../components/ContractPanel";
+import { StoryStrip } from "../components/StoryStrip";
 import { AnimatePresence, motion } from "framer-motion";
 
 export function RunPage({ scenario, arm }: { scenario: string; arm: Arm }) {
@@ -34,6 +35,7 @@ export function RunPage({ scenario, arm }: { scenario: string; arm: Arm }) {
           <button className="btn" onClick={() => go(`/split/${scenario}`)}>Side by side ⇆</button>
           <button className="btn escrow" disabled={!done} onClick={() => setNonce((n) => n + 1)}>{b.online && b.liveReady ? "Run again" : "Replay"}</button>
         </div>
+        <StoryStrip v={v} />
         <div className="mapwrap">
           {runId && v ? <FlowMap runId={runId} v={v} onPick={(title, events) => setPicked({ title, events })} /> : null}
           <AnimatePresence>

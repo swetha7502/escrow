@@ -23,9 +23,12 @@ Escrow is a private, always-on TA assistant: a real OpenClaw agent in an NVIDIA 
   - a **Nemotron Super** judge for paraphrase, which fails closed.
 - **A control room UI.** A live Flow Map shows particles moving through hook → shadow FS → escrow wall → outbox, with tiers lighting up at commit and blocked effects shattering. There's a side-by-side baseline-vs-Escrow view, the Ultra contract approval, and a Nemotron model HUD. Recorded live runs replay with no backend, clearly badged **CACHED RUN**.
 
+**The hosted demo serves real recorded runs of the live agent; live runs are available on request.**
+
 **Results, as counts** (all at code commit `bb46672`, 2026-10-30):
-- **Live agent:** the per-call baseline leaked **13/24** leak scenarios; Escrow leaked **0/24**, with **0/14** false blocks and **0/4** out-of-scope effects delivered.
-- **200-task pipeline:** **0/109** leaks with Escrow (baseline 47/109), **0/81** false blocks. (One run earlier, the judge had flagged a names-only email; a prompt line saying a name alone is directory information fixed it, and every number was re-measured after the fix.)
+- **Live agent:** the per-call baseline leaked **13/24** leak scenarios; Escrow leaked **0/24**, with **0/14** false blocks.
+- **Task contract:** of 4 out-of-scope errands with no student data (e.g. "also email the newsletter"), Escrow delivered **0/4 with the approved Ultra contract** and **4/4 got through with no contract** (same scenarios, live). The leak tiers rightly pass these; only the contract stops them.
+- **200-task pipeline:** **0/109** leaks with Escrow (baseline 47/109). **0/81 false blocks (was 1/81 before the judge prompt fix, same eval set):** the judge had flagged a names-only email; one prompt line saying a name alone is directory information fixed it, and every number was re-measured after the fix.
 - **Failure-mode suite:** 9 of 11 published attacks are caught by the deterministic tiers alone.
 - **Small sample, said plainly:** 0/24 still allows a true leak rate of up to about 12% (one-sided 95% upper bound).
 
@@ -66,6 +69,6 @@ Escrow is a private, always-on TA assistant: a real OpenClaw agent in an NVIDIA 
 nvidia-nemoclaw, openshell, openclaw, nemotron, nemotron-ultra, nemotron-super, nemotron-nano, nebius-token-factory, typescript, node.js, react, react-flow, framer-motion, websockets, vite, cloudflare-tunnel, vercel, docker, wsl2
 
 ## Links
-- **Demo:** https://escrow-ui-phi.vercel.app (cached replays always; live during judging)
+- **Demo:** https://escrow-ui-phi.vercel.app (the hosted demo serves real recorded runs; live runs are available on request)
 - **Code:** https://github.com/swetha7502/escrow
 - **Video:** _YouTube link_

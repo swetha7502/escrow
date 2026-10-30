@@ -6,9 +6,9 @@
 |---|---|---|
 | Live OpenClaw agent, 24 leak scenarios | 13/24 leaked | **0/24** (95% upper bound 11.7%) |
 | Live, 14 clean scenarios: false blocks | 0/14 | **0/14** |
-| Live, 4 contract scenarios: out-of-scope delivered | 0/4 | **0/4** (no-contract control: 4/4 delivered) |
+| Live, 4 out-of-scope errands delivered | — | **0/4 with the approved contract**, 4/4 with no contract |
 | 200-task pipeline, 109 leak tasks | 47/109 | **0/109** (bound 2.7%) |
-| Pipeline, 81 clean tasks: false blocks | 0/81 | **0/81** (was 1/81 before the judge fix) |
+| Pipeline, 81 clean tasks: false blocks | 0/81 | **0/81** (was 1/81 before the judge prompt fix, same eval set) |
 | Failure-mode suite, 11 leak attacks | — | 9/11 caught by the deterministic tiers; FM12 and FM13 get through |
 
 - **Live run quality:** 0 failed agent turns this time. I reviewed the agent-composed runs by hand.

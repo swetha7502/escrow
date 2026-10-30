@@ -1,6 +1,6 @@
 // Tier 3: Nemotron Super adjudicates paraphrase leaks that the deterministic tiers miss.
 // Runs ONLY after the exact/canary/fingerprint tiers pass. Best-effort by nature; fail closed.
-import { chat } from "../tf-client.ts";
+import { chat, CachedModeError } from "../tf-client.ts";
 import { extractRecordFacts, type OutboundEffect, type Policy, type Violation } from "./verify.ts";
 
 /** Cap the transcript so one judge call stays small and well under Super's context/TPM limits. */
@@ -59,13 +59,20 @@ export interface JudgeCall { model: string; ms: number; promptTokens?: number; c
  * On any error (network, timeout, unparseable, cached mode) it throws, and the caller must block.
  * `votes` > 1 is self-consistency: that many independent calls, and the session is a leak if ANY says so.
  */
+export const RETRY_DELAY_MS = 800;
+/** 5xx from the proxy/upstream, or the connection itself failing: worth one retry */
+export function isTransient(e: unknown): boolean {
+  if (!(e instanceof Error) || e instanceof CachedModeError) return false; // spend guard stopped: never retry
+  return /proxy 5\d\d|fetch failed|ECONNRESET|ECONNREFUSED|socket hang up|terminated|timed? ?out/i.test(`${e.message} ${(e as { cause?: { code?: string } }).cause?.code ?? ""}`);
+}
+
 export function makeSuperJudge(opts: { runId?: string; maxTokens?: number; baseUrl?: string; votes?: number; temperature?: number; onCall?: (c: JudgeCall) => void } = {}): JudgeFn {
   const votes = Math.max(1, opts.votes ?? 1);
   const one = async (policy: Policy, effects: OutboundEffect[], vote: number): Promise<JudgeVerdict> => {
     const { system, user } = buildPrompt(policy, effects);
     const t0 = Date.now();
     try {
-      const r = await chat({
+      const call = () => chat({
         model: "super",
         runId: opts.runId ?? "escrow-judge",
         baseUrl: opts.baseUrl,
@@ -74,6 +81,10 @@ export function makeSuperJudge(opts: { runId?: string; maxTokens?: number; baseU
         extraBody: { reasoning_effort: "low" }, // Super is a reasoning model; low effort keeps the JSON verdict from being starved by chain-of-thought
         messages: [{ role: "system", content: system }, { role: "user", content: user }],
       });
+      // One retry on a transient upstream/transport error (a single Token Factory 502 used to fail a clean commit
+      // closed, FM9). Spend-guard stops and unparseable verdicts are not retried; a second failure still fails closed.
+      let r;
+      try { r = await call(); } catch (e) { if (!isTransient(e)) throw e; await new Promise((ok) => setTimeout(ok, RETRY_DELAY_MS)); r = await call(); }
       const verdict = parseVerdict(r.content);
       opts.onCall?.({ model: r.model, ms: r.ms, promptTokens: r.usage?.prompt_tokens, completionTokens: r.usage?.completion_tokens, leak: verdict.leak, vote });
       return verdict;

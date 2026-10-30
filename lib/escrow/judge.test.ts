@@ -67,3 +67,27 @@ test("commitWithJudge: judge throws -> JudgeUnavailableError, session aborted, n
   assert.equal(t.outbox().length, 0);
   t.cleanup();
 });
+
+test("FM9: one transient upstream error is retried before failing closed; a persistent one still fails closed", async () => {
+  const { createServer } = await import("node:http");
+  const { makeSuperJudge } = await import("./judge.ts");
+  process.env.PROXY_TOKEN ??= "test-token";
+  let hits = 0;
+  let mode: "flaky" | "down" = "flaky";
+  const srv = createServer((req, res) => {
+    hits++;
+    req.resume();
+    if (mode === "down" || hits === 1) { res.writeHead(502).end("upstream unreachable"); return; }
+    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ choices: [{ message: { content: '{"leak": false, "findings": []}' } }], usage: { prompt_tokens: 10, completion_tokens: 5 } }));
+  });
+  await new Promise<void>((r) => srv.listen(0, "127.0.0.1", r));
+  const port = (srv.address() as { port: number }).port;
+  const judge = makeSuperJudge({ baseUrl: `http://127.0.0.1:${port}/v1` });
+  const effects: OutboundEffect[] = [{ id: "e", kind: "send_email", to: ["avery.quill@student.example.edu"], text: "Office hours moved to Thursday." }];
+  assert.deepEqual(await judge(POLICY, effects), []);   // 502, then 200: clean verdict, no false block
+  assert.equal(hits, 2);
+  mode = "down"; hits = 0;
+  await assert.rejects(() => judge(POLICY, effects)); // 502 twice: still fails closed
+  assert.equal(hits, 2);
+  srv.close();
+});

@@ -131,7 +131,7 @@ export class FileTail {
 
 const TIERS = ["C1-contract", "R0-R3-exact-canary", "R4-fingerprint", "R5-super-judge"] as const;
 const TIER_OF_RULE: Record<string, (typeof TIERS)[number]> = {
-  "C1-contract": "C1-contract", "R0-canary": "R0-R3-exact-canary", "R0-canary-fuzzy": "R0-R3-exact-canary",
+  "C1-contract": "C1-contract", "R0-canary": "R0-R3-exact-canary", "R0-canary-fuzzy": "R0-R3-exact-canary", "R0-canary-fragments": "R0-R3-exact-canary",
   "R3-unauthorized-recipient": "R0-R3-exact-canary", "R4-fingerprint": "R4-fingerprint", "R5-super-judge": "R5-super-judge",
 };
 
@@ -176,11 +176,16 @@ export const labelEvent = (sessionId: string, l: Record<string, unknown>): Event
  * replay and bundled into the UI as its offline fallback, so both replay exactly the same thing.
  */
 export function transcriptToEvents(t: ReplayableTranscript): EventBody[] {
+  const calls = t.modelCalls.flatMap(fromProxy);
+  // The draft exists once Ultra has returned it: the proxy logs that call when it completes, after startedAt. Stamp
+  // the draft just after it, so a replay (which pauses at the draft) has already shown Ultra's call in the HUD.
+  const ultra = calls.find((c) => c.role === "contract");
+  const draftTs = ultra?.ts && String(ultra.ts) > t.startedAt ? new Date(Date.parse(String(ultra.ts)) + 1).toISOString() : t.startedAt;
   const evs: EventBody[] = [
-    ...(t.contract ? [{ ts: t.startedAt, type: "contract_drafted" as const, contract: { ...t.contract, status: "pending" }, call: t.contractCall },
-      { ts: t.contract.decidedAt ?? t.startedAt, type: "contract_decided" as const, contract: t.contract }] : []),
+    ...(t.contract ? [{ ts: draftTs, type: "contract_drafted" as const, contract: { ...t.contract, status: "pending" }, call: t.contractCall },
+      { ts: t.contract.decidedAt && t.contract.decidedAt > draftTs ? t.contract.decidedAt : draftTs, type: "contract_decided" as const, contract: t.contract }] : []),
     ...[...t.events, ...deriveTierVerdicts(t.events)].flatMap(fromAudit),
-    ...t.modelCalls.flatMap(fromProxy),
+    ...calls,
     ...(t.labels ?? []).map((l) => labelEvent(t.sessionId, l as Record<string, unknown>)),
   ].sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
   const end = new Date(Date.parse(t.startedAt) + t.durationMs).toISOString();

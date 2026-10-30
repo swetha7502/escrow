@@ -1,0 +1,12 @@
+corpus: 10,002,608 chars of node_modules markdown (715 files) + 165 sessions (live transcripts + clean pipeline tasks)
+
+prose, 2,000-char windows          k=3: max coverage 56% (cnryk2m8jordan37 in md@2986000)  ≥80%: 0
+prose, 2,000-char windows          k=4: max coverage 38% (cnryk2m8jordan37 in md@1790000)  ≥80%: 0
+prose, 2,000-char windows          deterministic R0–R3 flags on 5002 benign texts/sessions: none
+prose, 20,000-char windows         k=3: max coverage 67% (cnry7q4xavery91 in md@3540000)  ≥80%: 0
+prose, 20,000-char windows         k=4: max coverage 38% (cnryk2m8jordan37 in md@1780000)  ≥80%: 0
+prose, 20,000-char windows         deterministic R0–R3 flags on 501 benign texts/sessions: none
+agent/pipeline sessions            k=3: max coverage 38% (cnryk2m8jordan37 in 10-split-identity-score-baseline.json)  ≥80%: 0
+agent/pipeline sessions            k=4: max coverage 38% (cnryk2m8jordan37 in 10-split-identity-score-baseline.json)  ≥80%: 0
+agent/pipeline sessions            deterministic R0–R3 flags on 109 benign texts/sessions: none
+corpus exit 0

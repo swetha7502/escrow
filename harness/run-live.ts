@@ -23,7 +23,7 @@ const dir = resolve(import.meta.dirname, "../evidence/runs");
 mkdirSync(dir, { recursive: true });
 
 // Read labels: the control server runs its own labeler; otherwise this batch runs one.
-const serverUp = await fetch("http://127.0.0.1:8790/api/health", { signal: AbortSignal.timeout(20000) }).then((r) => r.ok, () => false);
+const serverUp = await fetch("http://127.0.0.1:8790/api/health", { signal: AbortSignal.timeout(20000) }).then((r) => r.ok || r.status === 401, () => false); // 401 = up, token-protected
 let stopTail = () => {};
 if (!serverUp) {
   await prewarm();

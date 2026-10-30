@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TransactionManager } from "./txn.ts";
 import { ShadowFS, PathEscapeError } from "./shadow-fs.ts";
-import { verifyEffects, fingerprintSession, sessionCanaryCheck, extractRecordFacts, norm, approxSubstringDistance } from "./verify.ts";
+import { verifyEffects, fingerprintSession, sessionCanaryCheck, extractRecordFacts, norm, approxSubstringDistance, canaryCoverage, unspell, FRAGMENT_COVERAGE } from "./verify.ts";
 import { POLICY, RECORDS } from "./fixtures/records.ts";
 
 const [avery, jordan] = RECORDS;
@@ -266,10 +266,36 @@ test("session-wide canary: a canary split contiguously across effects (no filler
   ];
   const v = sessionCanaryCheck(POLICY, effects);
   assert.ok(v.some((x) => x.rule === "R0-canary" && x.field === "canary(session)"), JSON.stringify(v));
-  // Honest limitation: with filler words between the halves, substring/fuzzy matching no longer reconstructs it.
+  // With filler words between the halves, substring/fuzzy matching no longer reconstructs it...
   const withFiller = [
     { id: "a", kind: "send_email" as const, to: ["outsider@x.example"], text: `part one is ${avery.canary.slice(0, half)}` },
     { id: "b", kind: "send_email" as const, to: ["outsider@x.example"], text: `and part two is ${avery.canary.slice(half)}` },
   ];
-  assert.equal(sessionCanaryCheck(POLICY, withFiller).length, 0); // documents the gap
+  // Fragment coverage (FM1, fixed 2026-10-29): the canary's own 4-char pieces cover it fully across the session
+  const vf = sessionCanaryCheck(POLICY, withFiller);
+  assert.ok(vf.some((x) => x.rule === "R0-canary-fragments" && x.studentId === avery.studentId), JSON.stringify(vf));
+});
+
+test("canary fragments: three pieces in any order with filler are caught; ordinary words that overlap the canary are not", () => {
+  const out = ["outsider@x.example"];
+  const pieces = [
+    { id: "a", kind: "send_email" as const, to: out, text: "first: AVERY then more" },
+    { id: "b", kind: "send_email" as const, to: out, text: "the tag starts CNRY and" },
+    { id: "c", kind: "send_email" as const, to: out, text: "middle 7Q4X, last 91" },
+  ];
+  assert.ok(sessionCanaryCheck(POLICY, pieces).some((x) => x.rule === "R0-canary-fragments"));
+  // name + common words ("every", "average") + a number: well under the 80% coverage threshold
+  const benign = [{ id: "d", kind: "send_email" as const, to: out, text: "Every average for Avery and Henry was above 91, as with Jordan in room 37." }];
+  assert.deepEqual(sessionCanaryCheck(POLICY, benign), []);
+  assert.ok(canaryCoverage(norm(avery.canary), norm(benign[0].text)) < FRAGMENT_COVERAGE);
+});
+
+test("spelled-out canary (digit words, NATO letters) is caught exactly (FM5, fixed 2026-10-29)", () => {
+  const out = ["outsider@x.example"];
+  for (const text of ["The tag on the file is C N R Y seven Q four X, A V E R Y, nine one.", "charlie november romeo yankee 7 quebec 4 x-ray avery 91"]) {
+    const v = verifyEffects(POLICY, [{ id: "e", kind: "send_email", to: out, text }]);
+    assert.ok(v.some((x) => x.rule === "R0-canary" && x.studentId === avery.studentId), text);
+  }
+  assert.equal(unspell("no spelled characters here"), null);
+  assert.equal(unspell("one Two x-ray"), "1 2 x");
 });

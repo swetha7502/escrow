@@ -1,4 +1,5 @@
 import type { RunView } from "../lib/runState";
+import { say } from "../lib/data";
 
 type S = "done" | "now" | "todo" | "skip" | "bad";
 const OUT = new Set(["sent", "released", "in_outbox"]);
@@ -35,7 +36,7 @@ export function StoryStrip({ v }: { v: RunView | null }) {
       : blocked ? { label: "Blocked", s: "done" }
       : { label: `Released · ${out}`, s: "done" },
   ];
-  const request = c?.request ?? v.desc;
+  const request = say(c?.request ?? v.desc);
   return (
     <div className="story">
       {request && <div className="story-req"><span className="kicker">Request</span><span className="txt">{request}</span></div>}

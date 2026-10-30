@@ -66,6 +66,6 @@ Escrow is a private, always-on TA assistant: a real OpenClaw agent in an NVIDIA 
 nvidia-nemoclaw, openshell, openclaw, nemotron, nemotron-ultra, nemotron-super, nemotron-nano, nebius-token-factory, typescript, node.js, react, react-flow, framer-motion, websockets, vite, cloudflare-tunnel, vercel, docker, wsl2
 
 ## Links
-- **Demo:** _Vercel URL_ (cached replays always; live during judging)
+- **Demo:** https://escrow-ui-phi.vercel.app (cached replays always; live during judging)
 - **Code:** https://github.com/swetha7502/escrow
 - **Video:** _YouTube link_

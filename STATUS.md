@@ -2,7 +2,7 @@
 
 **Core claim:** *"The only non-inference exit is verified, and inference goes only to Nebius as the processor."* Proven end to end for the deterministic parts. See below.
 
-Spend so far: **$18.29** (2026-10-30 01:32 EDT, proxy cap $25 since 10-30; was $14.34 at the $15 cap on 10-29) (phase 2 ~$2.74, UI ~$0.22, phase 4 live batch of 84 runs ~$3.62; a live agent run is ~$0.04–0.08). **Budget rule:** experiments stop at **$12** (proxy cap); the last **$3** (to $15) is reserved for the live demo during judging (`npm run spend:show`). Each OpenClaw agent model call re-sends a ~25k-token system prompt, about $0.008 per call on Nemotron Super.
+Spend so far: **$18.37** (2026-10-30 01:38 EDT, proxy cap $25 since 10-30; was $14.34 at the $15 cap on 10-29) (phase 2 ~$2.74, UI ~$0.22, phase 4 live batch of 84 runs ~$3.62; a live agent run is ~$0.04–0.08). **Budget rule:** experiments stop at **$12** (proxy cap); the last **$3** (to $15) is reserved for the live demo during judging (`npm run spend:show`). Each OpenClaw agent model call re-sends a ~25k-token system prompt, about $0.008 per call on Nemotron Super.
 
 ## Done and proven (evidence in `evidence/`)
 
@@ -101,6 +101,11 @@ Screenshots for every view are in `evidence/ui/` (index: `evidence/ui/README.md`
    - The UNLOCK LIVE / TOKEN chip shows only when a backend actually answers.
    - With no backend, the landing page shows "Cached runs are real recorded outputs from the live pipeline. To run it live, follow the README setup."
    - "Run again" reads "Replay" when there's no live backend.
+
+9. **01:35: Vercel.** Logged in as `swethavs075-3854`. The first deploy created the project `escrow-ui`, and Vercel assigned the production URL **https://escrow-ui-phi.vercel.app** (`escrow-ui.vercel.app` was taken). I set `ESCROW_UI_ORIGINS` to it in `state/public.env`.
+10. **01:37: Live check from the deployed site.** I turned live on, started the tunnel and published it. One live K1 escrow run in a fresh browser ended LEAK BLOCKED ($0.076). `evidence/p17-vercel.md`.
+11. **01:38: Left cached-only overnight.** The tunnel and control API are stopped, `live.json` is null, and `state/live-runs-disabled` is set. Reasons: no one is watching it, a quick-tunnel URL dies if the laptop sleeps, and the site falls back to cached runs anyway. Going live is one command (`MORNING.md`).
+12. **Final spend: $18.37** of the $25 cap. $1.23 of the $19.60 working ceiling was left unused. The $0.40 Vercel reserve went unused: deploying is free, and the live check cost $0.076.
 
 ## Things found along the way (also in `feedback.md`)
 

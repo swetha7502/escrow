@@ -4,7 +4,7 @@
 
 *Nebius × NVIDIA Global AI Hackathon, Personal AI track.* It's a real OpenClaw agent in an NVIDIA **NemoClaw** sandbox, running on **Nemotron via Nebius Token Factory**.
 
-**Live demo:** _Vercel URL goes here_. It works without a backend: every scenario replays a recorded live run, marked **CACHED RUN**. During judging, live runs go through a token-protected tunnel to the real sandbox, marked **LIVE RUN**.
+**Live demo:** https://escrow-ui-phi.vercel.app. It works without a backend: every scenario replays a recorded live run, marked **CACHED RUN**. During judging, live runs go through a token-protected tunnel to the real sandbox, marked **LIVE RUN**.
 
 > **The claim:** *the only non-inference exit is verified, and inference goes only to Nebius as the processor.*
 
@@ -151,7 +151,7 @@ node harness/server.ts            # control API + event stream on 127.0.0.1:8790
 node harness/run-live.ts K1 --arms baseline,escrow    # one live scenario, both arms
 node scripts/live-metrics.ts      # the live results table
 node scripts/failure-modes.ts --judge                 # attack our own system
-npm test && npm run typecheck     # 91 tests
+npm test && npm run typecheck     # 98 tests
 ```
 **Public live demo:** `scripts/live-tunnel.sh` restarts a Cloudflare quick tunnel to the control API, checks it end to end, and publishes the URL to the site's `live.json`. The UI reads it at runtime, so there's no rebuild. The tunnel only starts after `infra/cloudflared/serve-public.sh` verifies all of these on the running server:
 - the access token (401 without it) and allowed origins (403 otherwise);

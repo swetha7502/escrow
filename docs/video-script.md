@@ -4,7 +4,7 @@
 
 ## Before recording (5 minutes)
 1. **Start the backend:** `scripts/live-tunnel.sh`. Wait for `tunnel OK`.
-2. **Open the site:** open the Vercel site in a clean browser window, click **UNLOCK LIVE**, and paste the token (`grep TOKEN state/public.env`). The header chip should read **LIVE · SANDBOX READY**.
+2. **Open the site:** open https://escrow-ui-phi.vercel.app in a clean browser window, click **UNLOCK LIVE**, and paste the token (`grep TOKEN state/public.env`). The header chip should read **LIVE · SANDBOX READY**.
 3. **Check the budget:** the proxy cap must have room. Each live run costs about $0.05, and K1 side by side is 2 runs (`npm run spend:show`).
 4. **Fallback:** if the tunnel or the sandbox misbehaves, record the same flow on cached runs. Everything is identical except the badge reads **CACHED RUN**. Say "recorded live run" instead of "live".
 

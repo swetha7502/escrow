@@ -59,7 +59,7 @@ const Station = memo(function Station({ data }: NodeProps<Node<StationData>>) {
   switch (id) {
     case "agent": {
       const agentCalls = models.filter((m) => m.role === "agent").length;
-      k = "Agent"; t = "TA assistant"; ico = "◆";
+      k = "Assistant"; t = "TA assistant"; ico = "◆";
       s = v.status === "awaiting_approval" ? "Waiting for the task contract…" : v.status === "done" ? "Turn finished" : v.status === "starting" ? "Starting…" : "Super · in the sandbox";
       n = <><span><b>{v.toolCalls}</b> tool calls</span><span><b>{agentCalls}</b> turns</span></>;
       cls = v.status === "awaiting_approval" ? "paused" : v.status === "running" || v.status === "verifying" ? "hot" : "";
@@ -363,7 +363,7 @@ function Inner({ runId, v, onPick }: { runId: string; v: RunView; onPick: (title
           const a = view.attempts[view.attempts.length - 1];
           if (e.ok) {
             a?.effectIds.forEach((id, i) => go(route("wall-outbox"), C.safe, e, { size: 5, delay: 250 + i * 220, onArrive: () => flash("outbox", "safe") }));
-            if (a?.afterBlock) banner_("safe", `${(scenarioMeta(view.scenario).retryLabel ?? "safe reply").toUpperCase()} VERIFIED`, "The agent's new reply passed every tier — delivered.");
+            if (a?.afterBlock) banner_("safe", `${(scenarioMeta(view.scenario).retryLabel ?? "safe reply").toUpperCase()} RELEASED`, "The assistant's new reply passed every tier and was released.");
             else banner_("safe", "COMMITTED", `${a?.effectIds.length ?? 0} effect(s) verified — released to the outbox`);
           } else {
             f.ring({ x: BARRIER_X, y: WALL_IN.y }, C.blocked);

@@ -30,7 +30,7 @@ export function ApprovePage({ id }: { id?: string }) {
       <div>
         <div className="kicker">Approvals</div>
         <h1>{id ? "Task contract" : "Pending task contracts"}</h1>
-        <p className="muted" style={{ margin: "8px 0 0", lineHeight: 1.5 }}>Each run that needs a contract waits here until you decide. The agent does not start before you approve.</p>
+        <p className="muted" style={{ margin: "8px 0 0", lineHeight: 1.5 }}>Each run that needs a contract waits here until you decide. The assistant does not start before you approve.</p>
       </div>
       {shown.map((c) => <ContractPanel key={c.id} c={c} onDecided={(d) => setDecided((x) => ({ ...x, [c.id]: { ...c, status: d } }))} />)}
       {!shown.length && (

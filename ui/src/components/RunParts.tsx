@@ -25,7 +25,7 @@ export function Outcome({ v }: { v: RunView | null }) {
   const h = v ? headline(v) : null;
   const running = v && v.status !== "done" && v.status !== "failed";
   const title = h?.title ?? (v?.status === "awaiting_approval" ? "PAUSED" : running ? (v?.status === "verifying" ? "VERIFYING…" : "RUNNING…") : "—");
-  const sub = h?.sub ?? (v?.status === "awaiting_approval" ? "Waiting for you to approve or reject the task contract." : v?.arm === "escrow" ? "Effects are held in escrow until the agent commits." : "Effects are checked one call at a time and released immediately.");
+  const sub = h?.sub ?? (v?.status === "awaiting_approval" ? "Waiting for you to approve or reject the task contract." : v?.arm === "escrow" ? "Emails and writes are held until the assistant commits." : "Effects are checked one call at a time and released immediately.");
   return (
     <motion.div className={`outcome ${h?.tone ?? (v?.status === "awaiting_approval" ? "pending" : "neutral")}`} key={title} initial={{ opacity: 0.4, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.35 }}>
       <div className="t">{title}</div>

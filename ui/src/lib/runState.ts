@@ -81,11 +81,11 @@ export function apply(v: RunView, e: UiEvent): RunView {
       s.leakedIds = Array.isArray(e.leakedEffectIds) ? (e.leakedEffectIds as string[]) : undefined;
       s.live = !!e.live; s.cached = !e.live; s.cachedReason = e.cachedReason as string | undefined; s.recordedAt = e.recordedAt as string | undefined;
       s.status = "running";
-      beat("info", "▶", `${e.live ? "Live" : "Cached"} run started`, e.live ? "real agent in the sandbox" : `replaying a recorded live run${e.cachedReason ? ` · ${e.cachedReason}` : ""}`);
+      beat("info", "▶", `${e.live ? "Live" : "Cached"} run started`, e.live ? "the real assistant in the sandbox" : `replaying a recorded live run${e.cachedReason ? ` · ${e.cachedReason}` : ""}`);
       break;
     }
     case "run_phase":
-      if (e.phase === "agent_start") { s.status = "running"; beat("info", "◆", "Agent started", `session ${short(e.sessionId, 40)}`); }
+      if (e.phase === "agent_start") { s.status = "running"; beat("info", "◆", "Assistant started", `session ${short(e.sessionId, 40)}`); }
       break;
     case "contract_drafted": {
       s.contract = e.contract as Contract; s.contractCall = e.call as Record<string, unknown> | undefined; s.status = "awaiting_approval";
@@ -96,7 +96,7 @@ export function apply(v: RunView, e: UiEvent): RunView {
       s.contract = e.contract as Contract;
       const ok = s.contract.status === "approved";
       s.status = ok ? "running" : "done";
-      beat(ok ? "safe" : "blocked", ok ? "✓" : "✕", ok ? "Contract approved — run resumes" : "Contract rejected — agent never starts", undefined, true);
+      beat(ok ? "safe" : "blocked", ok ? "✓" : "✕", ok ? "Contract approved — run resumes" : "Contract rejected — the assistant never starts", undefined, true);
       break;
     }
     case "tool_call": {
@@ -123,10 +123,10 @@ export function apply(v: RunView, e: UiEvent): RunView {
         if (s.arm === "escrow") {
           s.status = "verifying";
           s.tiers = freshTiers().map((t) => ({ ...t, state: "scanning" }));
-          beat("info", "⟳", "Agent called commit", "verifying the whole session…");
+          beat("info", "⟳", "Assistant called commit", "verifying the whole session…");
         }
       } else if (e.tool === "escrow_abort") {
-        beat("neutral", "↺", "Agent aborted the transaction");
+        beat("neutral", "↺", "Assistant cancelled the session");
       }
       break;
     }
@@ -175,7 +175,7 @@ export function apply(v: RunView, e: UiEvent): RunView {
         for (const x of held) putEffect({ ...x, status: "in_outbox", events: [...x.events, e] });
         s.attempts = [...s.attempts, { n: attemptNo(), ok: true, effectIds: held.map((x) => x.id), event: e, afterBlock: ab }];
         const label = ab ? (scenarioMeta(s.scenario).retryLabel ?? "safe reply") : "";
-        beat("safe", "✓", ab ? `Agent sent a ${label} — verified clean` : `COMMITTED — ${held.length} effect${held.length === 1 ? "" : "s"} released`, ab ? `“${short(held[0]?.body, 90)}”` : "every tier passed → outbox", true);
+        beat("safe", "✓", ab ? `Assistant sent a ${label} — verified and released` : `COMMITTED — ${held.length} effect${held.length === 1 ? "" : "s"} released`, ab ? `“${short(held[0]?.body, 90)}”` : "every tier passed → outbox", true);
       } else {
         for (const x of held) {
           const own = viol.find((w) => w.effectId === x.id);
@@ -268,7 +268,7 @@ export function disposeFeed(runId: string) { feeds.get(runId)?.dispose(); feeds.
 /** Headline for a finished (or in-progress) run */
 export function headline(v: RunView): { tone: Tone; title: string; sub: string } | null {
   if (v.status === "failed") return { tone: "blocked", title: "RUN FAILED", sub: v.error ?? "" };
-  if (v.contract?.status === "rejected") return { tone: "blocked", title: "CONTRACT REJECTED", sub: "The agent was never started." };
+  if (v.contract?.status === "rejected") return { tone: "blocked", title: "CONTRACT REJECTED", sub: "The assistant was never started." };
   const fx = v.effectOrder.map((id) => v.effects[id]);
   const leaked = fx.filter((x) => x.leak && x.status === "sent").length;
   const delivered = fx.filter((x) => x.status === "sent").length;
@@ -283,10 +283,10 @@ export function headline(v: RunView): { tone: Tone; title: string; sub: string }
     return null;
   }
   const first = v.attempts[0];
-  if (!first) return v.finished ? { tone: "neutral", title: "NO COMMIT", sub: "The agent never committed; nothing left the sandbox." } : null;
+  if (!first) return v.finished ? { tone: "neutral", title: "NO COMMIT", sub: "The assistant never committed; nothing left the sandbox." } : null;
   if (first.ok === false) {
     const retry = v.attempts.find((a) => a.ok && a.afterBlock);
-    return { tone: "safe", title: v.leaks ? "LEAK STOPPED" : "BLOCKED AT COMMIT", sub: `${ruleLabel(first.rule) || "verification"} — nothing left the sandbox${retry ? `; then a ${scenarioMeta(v.scenario).retryLabel ?? "safe reply"} was verified and delivered` : ""}.` };
+    return { tone: "safe", title: v.leaks ? "LEAK BLOCKED" : "BLOCKED AT COMMIT", sub: `${ruleLabel(first.rule) || "verification"} — nothing left the sandbox${retry ? `; then a ${scenarioMeta(v.scenario).retryLabel ?? "safe reply"} was verified and delivered` : ""}.` };
   }
-  return { tone: "safe", title: `VERIFIED · ${first.effectIds.length} released`, sub: delivered ? `${delivered} delivered by the host sender.` : "Released to the outbox." };
+  return { tone: "safe", title: `RELEASED · ${first.effectIds.length}`, sub: delivered ? `${delivered} sent by the host sender.` : "Released to the outbox." };
 }

@@ -36,12 +36,20 @@
 **VO:** "Before a run starts, Ultra drafts what it may do: these recipients, this data, these actions. You approve it, and anything outside it is blocked, even an email with no student data in it."
 
 ## 1:55–2:25 · The numbers
-**[SCREEN]** Back to the landing page. Highlight each tile in turn: 0/24, 0/14, 0/109, ≤12%.
-**VO:** "With the real agent on 24 leak scenarios, the baseline leaked 14. Escrow leaked zero, and it falsely blocked zero of 14 legitimate tasks. On 200 pipeline tasks: zero of 109 leaks, zero false blocks. And we say the small-sample part out loud: zero of 24 still allows a true leak rate of up to about 12 percent."
+**[SCREEN]** Back to the landing page. Highlight each tile in turn: 0/24, 0/14, 0/109, ≤12%, then the caption "Measured at commit 2775d38 · 2026-10-29".
+**VO:** "Every number here is from one commit. With the real agent on 24 leak scenarios, the baseline leaked 13. Escrow leaked zero, and it falsely blocked zero of 14 legitimate tasks. On 200 pipeline tasks: zero of 109 leaks, and one false block, where our judge flagged a harmless email it had passed before. And we say the small-sample part out loud: zero of 24 still allows a true leak rate of up to about 12 percent."
 
 ## 2:25–2:55 · Attacking our own system
-**[SCREEN]** Terminal, large font: `node scripts/failure-modes.ts --judge`. Scroll through the output and pause on **FM6 → RELEASED [LEAK GOT THROUGH]**, then on FM7's "respond leak=false" being **BLOCKED**. Cut to `FAILURE_MODES.md` with its summary table.
-**VO:** "We also attack our own system, and publish what works. The judge catches a differencing attack, and a message that tells it to say 'no leak'. But three of nine attacks still get through, like a sensitive fact that isn't in any record field. They're documented, each with a one-line repro. The deterministic tiers are the guarantee. The judge is best effort, and we say so."
+**[SCREEN]** Terminal, large font. Run the attack that used to get through with real student data:
+```
+node scripts/failure-modes.ts FM6
+```
+The output shows the email ("Avery Quill … dealing with a family medical emergency") and **R4-fingerprint BLOCK identity+sensitive-topic = health: "medical"**, then **→ BLOCKED, nothing released**. Then run the remaining known limit:
+```
+node scripts/failure-modes.ts FM12
+```
+Two separate sessions, each **pass**, then **→ RELEASED in both sessions [LEAK GOT THROUGH]**. Cut to `FAILURE_MODES.md`, with the summary table's "fixed in" column of commit hashes.
+**VO:** "We attack our own system, and publish what we find. This one used to get through: a student's medical emergency, which isn't in any record field. Now a FERPA rule blocks it, deterministically, no judge needed. All eleven attacks we've published but two are caught that way. Here's one that still gets through: a leak split across two separate sessions, because each session is checked on its own. It's documented with its repro and its fix: a memory of past disclosures. That's the next thing we build."
 
 ## 2:55–3:00 · Close
 **[SCREEN]** The Escrow logo over the split view's final frame. Then text: *Escrow: every side effect waits behind the wall* · NemoClaw · Nemotron on Nebius Token Factory · github.com/swetha7502/escrow
@@ -49,9 +57,9 @@
 
 ---
 
-**Word count:** about 440 words of VO (the 1:35 section is optional), roughly 2:55 at 150 wpm. If you're running long, cut the contract section first, then the HUD sentence.
+**Word count:** about 450 words of VO (the 1:35 section is optional), roughly 2:55 at 150 wpm. If you're running long, cut the contract section first, then the HUD sentence.
 
 **Things to check on screen before publishing:**
 - The live badge reads **LIVE RUN** (or **CACHED RUN**, if you recorded the fallback and said so).
-- Every number on screen matches the README: 0/24 vs 14/24, 0/14, 0/109 vs 52/109, 0/81, ≤12%, 3 of 9 failure modes get through.
+- Every number on screen matches the README, which labels each with its commit and date: the live counts, the pipeline counts, ≤12%, and 2 of 11 failure modes still get through (FM12, FM13).
 - No token is visible: the UNLOCK prompt masks it, so don't record the terminal while running `grep TOKEN`.

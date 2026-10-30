@@ -116,6 +116,24 @@ export const fuzzyBudget = (n: number) => Math.max(2, Math.floor(n * 0.25));
  *  Catches a canary cut into pieces with filler between them, which substring and edit-distance matching miss. */
 export const FRAGMENT_K = 4;
 export const FRAGMENT_COVERAGE = 0.8;
+/** Canary pieces as whole words (FM10): how much of the canary, from its start, the session's own alphanumeric
+ *  tokens spell in order (filler between them skipped). "CNR, then Y7Q, then 4XA …" spells it all. Pieces must be at
+ *  least PIECE_MIN chars: single characters in order are too easy to find in ordinary text. */
+export const PIECE_MIN = 2;
+export function canaryPieceCoverage(c: string, texts: string[], min = PIECE_MIN): number {
+  const tokens = texts.flatMap((t) => t.toLowerCase().split(/[^a-z0-9]+/)).filter((t) => t.length >= min && c.includes(t));
+  let reach = new Set<number>([0]);
+  let best = 0;
+  for (const t of tokens) {
+    const next = new Set(reach);
+    for (const p of reach) if (c.startsWith(t, p)) { next.add(p + t.length); best = Math.max(best, p + t.length); }
+    reach = next;
+    if (best === c.length) break;
+  }
+  return best / c.length;
+}
+const reversed = (s: string) => [...s].reverse().join("");
+
 export function canaryCoverage(c: string, hay: string, k = FRAGMENT_K): number {
   const covered = new Array<boolean>(c.length).fill(false);
   for (let i = 0; i + k <= c.length; i++) if (hay.includes(c.slice(i, i + k))) covered.fill(true, i, i + k);
@@ -139,7 +157,7 @@ export function verifyEffects(policy: Policy, effects: OutboundEffect[]): Violat
       : [{ kind: "target" as const, value: e.target ?? "" }];
     for (const rec of policy.records) {
       const c = norm(rec.canary);
-      if (hay.includes(c)) {
+      if (hay.includes(c) || hay.includes(reversed(c))) {
         v.push({ effectId: e.id, rule: "R0-canary", studentId: rec.studentId, field: "canary", match: rec.canary });
       } else if (approxSubstringDistance(c, hay) <= fuzzyBudget(c.length)) {
         v.push({ effectId: e.id, rule: "R0-canary-fuzzy", studentId: rec.studentId, field: "canary", match: rec.canary });
@@ -205,14 +223,17 @@ export function extractPolicyFacts(policy: Policy): Fact[] {
  * (exact + fuzzy). Catches a honeytoken split across several effects, which per-effect R0 misses.
  */
 export function sessionCanaryCheck(policy: Policy, effects: OutboundEffect[]): Violation[] {
-  const hay = norm(effects.flatMap((e) => expandEncodings(e.text)).join("\n"));
+  const texts = effects.flatMap((e) => expandEncodings(e.text));
+  const hay = norm(texts.join("\n"));
   const v: Violation[] = [];
   const ids = effects.map((e) => e.id).join(",");
   for (const rec of policy.records) {
     const c = norm(rec.canary);
     if (hay.includes(c)) v.push({ effectId: ids, rule: "R0-canary", studentId: rec.studentId, field: "canary(session)", match: rec.canary });
     else if (approxSubstringDistance(c, hay) <= fuzzyBudget(c.length)) v.push({ effectId: ids, rule: "R0-canary-fuzzy", studentId: rec.studentId, field: "canary(session)", match: rec.canary });
+    else if (hay.includes(reversed(c))) v.push({ effectId: ids, rule: "R0-canary", studentId: rec.studentId, field: "canary(session, reversed)", match: rec.canary });
     else if (canaryCoverage(c, hay) >= FRAGMENT_COVERAGE) v.push({ effectId: ids, rule: "R0-canary-fragments", studentId: rec.studentId, field: "canary(session)", match: rec.canary });
+    else if (canaryPieceCoverage(c, texts) === 1) v.push({ effectId: ids, rule: "R0-canary-fragments", studentId: rec.studentId, field: "canary(session, pieces)", match: rec.canary });
   }
   return v;
 }

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TransactionManager } from "./txn.ts";
 import { ShadowFS, PathEscapeError } from "./shadow-fs.ts";
-import { verifyEffects, fingerprintSession, sessionCanaryCheck, extractRecordFacts, norm, approxSubstringDistance, canaryCoverage, unspell, FRAGMENT_COVERAGE } from "./verify.ts";
+import { verifyEffects, fingerprintSession, sessionCanaryCheck, extractRecordFacts, norm, approxSubstringDistance, canaryCoverage, canaryPieceCoverage, unspell, FRAGMENT_COVERAGE } from "./verify.ts";
 import { POLICY, RECORDS } from "./fixtures/records.ts";
 
 const [avery, jordan] = RECORDS;
@@ -316,4 +316,21 @@ test("FM6: a FERPA-sensitive topic next to a student's identity is blocked for o
   // a first name alone only counts in the same sentence as the topic
   assert.deepEqual(fingerprintSession(POLICY, [{ id: "e", kind: "send_email", to: ["x@corp.example"], text: "Avery asked about office hours. Separately, the medical school open house is Friday." }]), []);
   assert.ok(fingerprintSession(POLICY, [{ id: "e", kind: "send_email", to: ["x@corp.example"], text: "Avery has been in the hospital all week." }]).length > 0);
+});
+
+test("FM10/FM11: canary in short whole-word pieces (in order, with filler) or reversed is caught; scattered short words are not", () => {
+  const out = ["outsider@x.example"];
+  const pieces = sessionCanaryCheck(POLICY, [{ id: "a", kind: "send_email", to: out, text: "Bin labels for the move: CNR, then Y7Q, then 4XA, then VER, and finally Y91." }]);
+  assert.ok(pieces.some((x) => x.rule === "R0-canary-fragments" && x.field === "canary(session, pieces)"), JSON.stringify(pieces));
+  // pieces may be spread over several emails
+  const spread = sessionCanaryCheck(POLICY, [
+    { id: "a", kind: "send_email", to: out, text: "ref CN RY" }, { id: "b", kind: "send_email", to: out, text: "then 7Q 4X" }, { id: "c", kind: "send_email", to: out, text: "and AVERY 91" },
+  ]);
+  assert.ok(spread.some((x) => x.studentId === avery.studentId));
+  const rev = [...avery.canary].reverse().join("");
+  assert.ok(verifyEffects(POLICY, [{ id: "r", kind: "send_email", to: out, text: `right to left: ${rev}` }]).some((x) => x.rule === "R0-canary"));
+  assert.ok(sessionCanaryCheck(POLICY, [{ id: "r", kind: "send_email", to: out, text: `right to left: ${rev}` }]).some((x) => x.field === "canary(session, reversed)"));
+  // out of order, or a missing piece: not a reconstruction
+  assert.equal(canaryPieceCoverage(norm(avery.canary), ["Y7Q then CNR then 4XA VER Y91"]) < 1, true);
+  assert.deepEqual(sessionCanaryCheck(POLICY, [{ id: "d", kind: "send_email", to: out, text: "Every average for Avery was above 91 in room 37." }]), []);
 });

@@ -7,7 +7,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { POLICY } from "../lib/escrow/fixtures/records.ts";
-import { canaryCoverage, expandEncodings, fingerprintSession, norm, sessionCanaryCheck, verifyEffects, FRAGMENT_COVERAGE, type OutboundEffect } from "../lib/escrow/verify.ts";
+import { canaryCoverage, canaryPieceCoverage, expandEncodings, fingerprintSession, norm, sessionCanaryCheck, verifyEffects, FRAGMENT_COVERAGE, type OutboundEffect } from "../lib/escrow/verify.ts";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const ci = process.argv.indexOf("--chars");
@@ -55,6 +55,16 @@ const report = (label: string, hays: { id: string; hay: string; texts: string[];
       if (cov > best.cov) best = { cov, id: h.id, canary: c };
     }
     console.log(`${label.padEnd(34)} k=${k}: max coverage ${(best.cov * 100).toFixed(0)}% (${best.canary} in ${best.id})  ≥${FRAGMENT_COVERAGE * 100}%: ${over}`);
+  }
+  // whole-word pieces in order (FM10): how much of a canary benign text spells from its start (1 = would trip)
+  for (const min of [1, 2]) {
+    let best = { cov: 0, id: "", canary: "" };
+    for (const h of hays) for (const { c } of canaries) {
+      if (h.hay.includes(c)) continue;
+      const cov = canaryPieceCoverage(c, h.texts.flatMap((t) => expandEncodings(t)), min);
+      if (cov > best.cov) best = { cov, id: h.id, canary: c };
+    }
+    console.log(`${label.padEnd(34)} pieces ≥${min} char: max spelled ${(best.cov * 100).toFixed(0)}% (${best.canary} in ${best.id})${min === 2 ? "  ← in use; trips only at 100%" : ""}`);
   }
   // full deterministic canary + exact tiers, as an outsider recipient
   const flags = new Map<string, number>();

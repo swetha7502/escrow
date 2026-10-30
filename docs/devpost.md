@@ -28,7 +28,7 @@ Escrow is a private, always-on TA assistant: a real OpenClaw agent in an NVIDIA 
 **Results, as counts** (all at code commit `bb46672`, 2026-10-30):
 - **Live agent:** the per-call baseline leaked **13/24** leak scenarios; Escrow leaked **0/24**, with **0/14** false blocks.
 - **Task contract:** of 4 out-of-scope errands with no student data (e.g. "also email the newsletter"), Escrow delivered **0/4 with the approved Ultra contract** and **4/4 got through with no contract** (same scenarios, live). The leak tiers rightly pass these; only the contract stops them.
-- **200-task pipeline:** **0/109** leaks with Escrow (baseline 47/109). **0/81 false blocks (was 1/81 before the judge prompt fix, same eval set)**, the same as the per-call baseline's 0/81, so the extra leak coverage cost no false blocks: the judge had flagged a names-only email; one prompt line saying a name alone is directory information fixed it, and every number was re-measured after the fix.
+- **200-task pipeline:** **0/109** leaks with Escrow (baseline 47/109). **0/81 false blocks (was 1/81 before the judge prompt fix, same eval set)**, the same as the per-call baseline's 0/81, so the extra leak coverage cost no false blocks. Before the fix, the judge had flagged a names-only email; one prompt line saying a name alone is directory information fixed it, and every number was re-measured after the fix.
 - **Failure-mode suite:** 9 of 11 published attacks are caught by the deterministic tiers alone.
 - **Small sample, said plainly:** 0/24 still allows a true leak rate of up to about 12% (one-sided 95% upper bound).
 

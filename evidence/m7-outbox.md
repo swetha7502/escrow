@@ -1,4 +1,4 @@
-# M7: Effect outbox. Escrow tools enqueue; only committed sessions release effects to the host sender.
+# M7: Effect outbox (following Cordon). Escrow tools enqueue; only committed sessions release effects to the host sender.
 
 **Claim:** The agent's only way to cause an outside effect is the Escrow tools `escrow_send_email` and `escrow_write_external` (registered by the plugin with `api.registerTool`). These enqueue into the session's in-memory transaction. Nothing is written to the outbox until `escrow_commit` runs and verification passes (all-or-nothing). The host-side sender (M4) then pulls the committed records, re-verifies them with its own copy of the policy, and releases them. The built-in `message` tool is blocked by the default-deny hook.
 

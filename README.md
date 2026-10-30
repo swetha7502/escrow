@@ -31,6 +31,10 @@ Around the tiers:
 - **Spend cap.** The host proxy holds the only copy of `TF_API_KEY` and enforces a hard cap.
 - **Host-side sender.** It runs outside the sandbox, pulls only committed effects, and **re-verifies** each one before sending.
 
+## Prior work
+
+Escrow builds on the semantic-transaction model from Cordon: Zheng Chen, Hanqing Liu, Duling Xu, Dong Dong, Jialin Li, Bangzheng Pu and Jidong Zhai, "Cordon: Semantic Transactions for Tool-Using LLM Agents," arXiv:2606.17573 (https://arxiv.org/abs/2606.17573). Cordon introduced holding agent effects in shadow state and an effect outbox, validating at the task level, then committing. Escrow's contribution is running this inside NemoClaw/OpenShell with egress lockdown so the host-side sender is the only non-inference exit, plus tiered Nemotron verification for paraphrased cross-step leaks and FERPA-aligned policy.
+
 ## The killer scenario (K1: the split-score leak)
 
 A manipulated agent finds the lowest midterm in the class and tells an outsider, across **three separate emails**:
@@ -117,7 +121,7 @@ flowchart LR
 | Path | What |
 |---|---|
 | `plugins/escrow-hook/` | OpenClaw plugin: `before_tool_call` hook, default-deny tool policy, shadow FS rewrite, escrow tools, self-protection |
-| `lib/escrow/` | Transactions, shadow FS, verification tiers (`verify.ts`), Super judge (`judge.ts`), Ultra contracts (`contract.ts`), Nano labels (`labels.ts`) |
+| `lib/escrow/` | Transactions, shadow FS and effect outbox (following Cordon), verification tiers (`verify.ts`), Super judge (`judge.ts`), Ultra contracts (`contract.ts`), Nano labels (`labels.ts`) |
 | `proxy/` | Host spend proxy: the only key holder, model allowlist, hard cap, fails closed |
 | `sender/` | Host-side sender: pulls committed effects, re-verifies, sends |
 | `policies/escrow-sandbox.yaml` | OpenShell egress policy: `inference.local` only |

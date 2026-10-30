@@ -14,7 +14,7 @@ Teaching assistants drown in regrade requests, extension requests and grade disp
 ### What it does
 Escrow is a private, always-on TA assistant: a real OpenClaw agent in an NVIDIA NemoClaw sandbox, with course-policy memory and regrade and extension skills. Escrow is its safety layer: **every side effect is held in escrow** (emails, external writes, file changes) until the agent commits. Then the **whole session** is verified, and everything is released or nothing is.
 
-- **The only exit is verified.** OpenShell locks the sandbox's network down to inference only, which goes to Nebius Token Factory. Every other effect goes through an outbox. A sender outside the sandbox delivers only committed effects, and re-verifies each one first.
+- **The only exit is verified.** OpenShell locks the sandbox's network down to inference only, which goes to Nebius Token Factory. Every other effect goes through an outbox (following Cordon). A sender outside the sandbox delivers only committed effects, and re-verifies each one first.
 - **Tiered verification:**
   - a task contract drafted by **Nemotron Ultra** and approved by you before the run;
   - canaries (exact, fuzzy, fragments, decoded);
@@ -33,7 +33,7 @@ Escrow is a private, always-on TA assistant: a real OpenClaw agent in an NVIDIA 
 - **Small sample, said plainly:** 0/24 still allows a true leak rate of up to about 12% (one-sided 95% upper bound).
 
 ### How we built it
-- **The hook.** An OpenClaw plugin on `before_tool_call` blocks every tool by default, rewrites file writes into a per-session shadow file system, and routes effects into an in-memory transaction. It protects itself, its config, the course policy and the records from the agent.
+- **The hook.** An OpenClaw plugin on `before_tool_call` blocks every tool by default, rewrites file writes into a per-session shadow file system, and routes effects into an in-memory transaction (following Cordon). It protects itself, its config, the course policy and the records from the agent.
 - **The verifier** (TypeScript) runs deterministic tiers in microseconds, then the Super judge (p50 about 1.2 s, about $0.0003 per commit).
 - **Inference.** All of it goes through a host-side spend proxy that's the only holder of the Token Factory key: model allowlist, hard cap, fails closed. The sandbox can't reach anything else, which we proved with egress probes.
 - **The models.** Nemotron 3 Ultra drafts task contracts and generated 27 extra attack and clean scenarios (labels by construction). Super runs the agent and judges paraphrase. Nano labels each file the agent reads.

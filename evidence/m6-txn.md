@@ -1,4 +1,4 @@
-# M6: Per-session transactions + app-level shadow FS (inside the sandbox)
+# M6: Per-session transactions + app-level shadow FS (following Cordon; inside the sandbox)
 
 **Claim:** File writes by the agent inside the sandbox never touch their real path until the session commits. The `before_tool_call` hook rewrites the `path` of `write`/`edit` into a per-session shadow dir (`/sandbox/.escrow/shadow/<session>/…`, copy-on-write for `edit`). It redirects `read` of a shadowed path, so the session sees its own uncommitted writes. `escrow_commit` applies everything atomically per file. `escrow_abort` discards it. The transaction manager is in-memory per OpenClaw `sessionKey`, with no WAL.
 

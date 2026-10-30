@@ -2,7 +2,7 @@
 
 Escrow is a TA assistant running in **NemoClaw** (OpenClaw in an OpenShell sandbox) on **Nemotron via Nebius Token Factory**, with a safety layer that holds every side effect until the session is verified. We built it between 2026-10-20 and 2026-10-30 on one WSL2 + Docker Desktop laptop.
 
-This write-up is distilled from our dated friction log (`feedback.md`, 21 entries, each with what happened and the workaround). The issues are ordered by how much time they cost us. Each one has a concrete suggestion.
+This write-up is distilled from our dated friction log (`feedback.md`, 20 entries, each with what happened and the workaround). The issues are ordered by how much time they cost us. Each one has a concrete suggestion.
 
 ## What worked well
 

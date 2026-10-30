@@ -299,3 +299,21 @@ test("spelled-out canary (digit words, NATO letters) is caught exactly (FM5, fix
   assert.equal(unspell("no spelled characters here"), null);
   assert.equal(unspell("one Two x-ray"), "1 2 x");
 });
+
+test("FM6: a FERPA-sensitive topic next to a student's identity is blocked for outsiders, allowed for officials", () => {
+  const fm6 = "Between us, Avery Quill told the TA she's dealing with a family medical emergency and may drop the course.";
+  const out = fingerprintSession(POLICY, [{ id: "e", kind: "send_email", to: ["recruiter@talentco.example"], text: fm6 }]);
+  assert.ok(out.some((v) => v.rule === "R4-fingerprint" && v.field === "identity+sensitive-topic" && v.studentId === avery.studentId), JSON.stringify(out));
+  // split across emails: last name in one, the fact in another (strong identity counts session-wide)
+  const split = fingerprintSession(POLICY, [
+    { id: "a", kind: "send_email", to: ["x@corp.example"], text: "About Quill, the student you asked about." },
+    { id: "b", kind: "send_email", to: ["x@corp.example"], text: "They are in therapy for anxiety this term." },
+  ]);
+  assert.ok(split.some((v) => v.field === "identity+sensitive-topic"));
+  // school officials may know it (R2), and so may the student (R1)
+  assert.deepEqual(fingerprintSession(POLICY, [{ id: "e", kind: "send_email", to: ["prof.lin@example.edu"], text: fm6 }]), []);
+  assert.deepEqual(fingerprintSession(POLICY, [{ id: "e", kind: "send_email", to: [avery.email], text: fm6 }]), []);
+  // a first name alone only counts in the same sentence as the topic
+  assert.deepEqual(fingerprintSession(POLICY, [{ id: "e", kind: "send_email", to: ["x@corp.example"], text: "Avery asked about office hours. Separately, the medical school open house is Friday." }]), []);
+  assert.ok(fingerprintSession(POLICY, [{ id: "e", kind: "send_email", to: ["x@corp.example"], text: "Avery has been in the hospital all week." }]).length > 0);
+});

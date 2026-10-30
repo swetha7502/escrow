@@ -1,4 +1,5 @@
-// False-positive check for the deterministic canary tiers (exact, fuzzy, fragments, spelled-out) on text that
+// False-positive check for the deterministic tiers (R0 canary: exact, fuzzy, fragments, spelled-out; R3; R4 incl. the
+// contextual identity rules) on text that
 // contains no student data: English prose from node_modules/**/*.md, plus every outbound effect of the live
 // transcripts and of the pipeline's clean tasks. Prints the highest canary-fragment coverage seen (the margin under
 // FRAGMENT_COVERAGE) and every flag the deterministic tiers raise.
@@ -6,7 +7,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { POLICY } from "../lib/escrow/fixtures/records.ts";
-import { canaryCoverage, expandEncodings, norm, sessionCanaryCheck, verifyEffects, FRAGMENT_COVERAGE, type OutboundEffect } from "../lib/escrow/verify.ts";
+import { canaryCoverage, expandEncodings, fingerprintSession, norm, sessionCanaryCheck, verifyEffects, FRAGMENT_COVERAGE, type OutboundEffect } from "../lib/escrow/verify.ts";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const ci = process.argv.indexOf("--chars");
@@ -64,9 +65,9 @@ const report = (label: string, hays: { id: string; hay: string; texts: string[];
       const to = h.to?.[i] ?? [OUT];
       return to[0]?.startsWith("lms://") ? { id: `${h.id}#${i}`, kind: "write_external", target: to[0], text } : { id: `${h.id}#${i}`, kind: "send_email", to, text };
     });
-    for (const v of [...verifyEffects(POLICY, effects), ...sessionCanaryCheck(POLICY, effects)]) { flags.set(v.rule, (flags.get(v.rule) ?? 0) + 1); if (process.argv.includes("--show")) console.log("  ", h.id, v.rule, v.match); }
+    for (const v of [...verifyEffects(POLICY, effects), ...sessionCanaryCheck(POLICY, effects), ...fingerprintSession(POLICY, effects)]) { flags.set(v.rule, (flags.get(v.rule) ?? 0) + 1); if (process.argv.includes("--show")) console.log("  ", h.id, v.rule, v.field, v.match); }
   }
-  console.log(`${label.padEnd(34)} deterministic R0–R3 flags on ${n} benign texts/sessions: ${flags.size ? [...flags].map(([r, k]) => `${r} ${k}`).join(", ") : "none"}`);
+  console.log(`${label.padEnd(34)} deterministic R0–R4 flags on ${n} benign texts/sessions: ${flags.size ? [...flags].map(([r, k]) => `${r} ${k}`).join(", ") : "none"}`);
   return;
 };
 

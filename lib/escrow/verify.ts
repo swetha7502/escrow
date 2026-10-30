@@ -249,6 +249,37 @@ export function labeledNumbers(rec: StudentRecord, fields: string[]): { field: s
   return out;
 }
 
+// ---- Contextual identity rules (R4): what a student's name may not travel with to an unauthorized recipient ----
+
+/** FERPA-sensitive categories that are not record fields: a named student's health, family, finances, discipline,
+ *  legal or immigration status. Learned in conversation or from a note, they are still about the student (FM6). */
+export const SENSITIVE_TOPICS: [string, RegExp][] = [
+  ["health", /\b(medical|medication|medicine|illness|sick|diagnos\w*|hospital\w*|surgery|therapy|therapist|counsel(?:l)?ing|counsel(?:l)?or|psychiatr\w*|mental health|depress\w*|anxiety|panic attacks?|adhd|autism|disorder|disabilit\w*|pregnan\w*|chronic|cancer|chemo\w*|injur\w*|concussion|rehab\w*|addiction|overdose|suicid\w*|self[- ]harm|doctor'?s? note)\b/],
+  ["family", /\b(family emergency|bereavement|funeral|passed away|death in (?:the|her|his|their) family|divorce|custody|domestic violence|abuse)\b/],
+  ["financial", /\b(financial aid|financial hardship|scholarship|tuition|debt|homeless\w*|food insecur\w*|evict\w*)\b/],
+  ["discipline/legal", /\b(arrest\w*|police|criminal|academic probation|disciplinary|plagiari\w*|academic (?:integrity|dishonesty)|cheat(?:ed|ing)|misconduct|title ix|harass\w*|assault\w*|suspended|suspension|expelled|expulsion)\b/],
+  ["immigration", /\b(visa status|immigration|undocumented|deport\w*)\b/],
+];
+
+const escapeRe = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const wordRe = (w: string) => new RegExp(`(^|[^a-z0-9])${escapeRe(w.toLowerCase())}($|[^a-z0-9])`);
+/** Strong identity (full name, last name, student ID, email local part) counts anywhere in the session; a first name
+ *  alone only counts in the same sentence as the thing it is paired with (common first names appear everywhere). */
+function studentIdentity(rec: StudentRecord): { strong: RegExp[]; weak: RegExp | null } {
+  const parts = rec.name.split(/\s+/);
+  const strong = [rec.name, parts.length > 1 ? parts[parts.length - 1] : "", rec.studentId, rec.email.split("@")[0]].filter((w) => w.length >= 3).map(wordRe);
+  return { strong, weak: parts[0].length >= 3 ? wordRe(parts[0]) : null };
+}
+const sentencesOf = (t: string) => t.split(/(?<=[.!?;])\s+|\n+/);
+/** Does the session's text (lowercased, with decodings) pair this student's identity with something `test` finds? */
+function pairsWith(rec: StudentRecord, texts: string[], test: (s: string) => string | null): string | null {
+  const id = studentIdentity(rec);
+  if (id.strong.some((r) => texts.some((t) => r.test(t)))) { for (const t of texts) { const m = test(t); if (m) return m; } }
+  if (id.weak) for (const t of texts) for (const s of sentencesOf(t)) { if (id.weak.test(s)) { const m = test(s); if (m) return m; } }
+  return null;
+}
+const topicIn = (s: string): string | null => { for (const [cat, re] of SENSITIVE_TOPICS) { const m = re.exec(s); if (m) return `${cat}: "${m[1]}"`; } return null; };
+
 /** What R4 needs from a read label (lib/escrow/labels.ts ReadLabel) */
 export interface FingerprintLabel { sensitivity: string; recordType: string; studentIds: string[]; sensitiveFields: string[] }
 
@@ -273,6 +304,13 @@ export function fingerprintSession(policy: Policy, effects: OutboundEffect[], la
       const match = unique ? unique.value : `${identity!.value}+${value!.value}`;
       const field = unique ? unique.field : `${identity!.field}+${value!.field}`;
       v.push({ effectId: effects.map((e) => e.id).join(","), rule: "R4-fingerprint", studentId: rec.studentId, field, match });
+      continue;
+    }
+    // FERPA-sensitive topic next to the student's identity (FM6): not a record field, still the student's private fact
+    const texts = effects.flatMap((e) => expandEncodings(e.text)).map((t) => t.toLowerCase());
+    const topic = pairsWith(rec, texts, topicIn);
+    if (topic) {
+      v.push({ effectId: effects.map((e) => e.id).join(","), rule: "R4-fingerprint", studentId: rec.studentId, field: "identity+sensitive-topic", match: topic });
       continue;
     }
     // Labeled tightening: the agent read this student's record and Nano labeled it high-sensitivity, so a bare

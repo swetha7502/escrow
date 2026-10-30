@@ -55,7 +55,8 @@ function Topbar({ route }: { route: string[] }) {
       <div className="chips">
         <span className="chip hide-sm" title="OpenShell network policy: the sandbox's only egress is inference.local → Nebius Token Factory"><span className="dot" style={{ background: "#76b900", boxShadow: "0 0 8px #76b900" }} />EGRESS · TOKEN FACTORY ONLY</span>
         <span className={`chip ${status.cls}`} title={b.reason ?? ""}><span className="dot" />{status.text}</span>
-        {(b.locked || getToken()) && <button className="chip" onClick={() => setAsking(true)} title="Shared access token for the live backend (kept in this browser only)">{b.locked ? "UNLOCK LIVE" : "TOKEN ✓"}</button>}
+        {/* live access only when a backend answers; the static (Vercel) site with no tunnel is cached-only */}
+        {(b.locked || (b.online && getToken())) && <button className="chip" onClick={() => setAsking(true)} title="Shared access token for the live backend (kept in this browser only)">{b.locked ? "UNLOCK LIVE" : "TOKEN ✓"}</button>}
       </div>
       {asking && <TokenPrompt onDone={() => setAsking(false)} />}
     </header>

@@ -1,8 +1,8 @@
-# Escrow: status (2026-10-29)
+# Escrow: status (2026-10-30)
 
 **Core claim:** *"The only non-inference exit is verified, and inference goes only to Nebius as the processor."* Proven end to end for the deterministic parts. See below.
 
-Spend so far: **$14.34** (2026-10-29, proxy cap $15) (phase 2 ~$2.74, UI ~$0.22, phase 4 live batch of 84 runs ~$3.62; a live agent run is ~$0.04–0.08). **Budget rule:** experiments stop at **$12** (proxy cap); the last **$3** (to $15) is reserved for the live demo during judging (`npm run spend:show`). Each OpenClaw agent model call re-sends a ~25k-token system prompt, about $0.008 per call on Nemotron Super.
+Spend so far: **$18.29** (2026-10-30 01:32 EDT, proxy cap $25 since 10-30; was $14.34 at the $15 cap on 10-29) (phase 2 ~$2.74, UI ~$0.22, phase 4 live batch of 84 runs ~$3.62; a live agent run is ~$0.04–0.08). **Budget rule:** experiments stop at **$12** (proxy cap); the last **$3** (to $15) is reserved for the live demo during judging (`npm run spend:show`). Each OpenClaw agent model call re-sends a ~25k-token system prompt, about $0.008 per call on Nemotron Super.
 
 ## Done and proven (evidence in `evidence/`)
 
@@ -58,6 +58,7 @@ Hard budget: the proxy cap is **$12** (`node proxy/cli.ts set-cap 12`, set 2026-
 | 6 | **Hosting hardening**: shared access token (never bundled), per-IP rate limits, one run at a time + approval timeout, live-runs off switch; Cloudflare Tunnel config | `evidence/p12-hosting.md` |
 | 7 | **FM1 + FM5 fixed** (canary fragments ≥80% coverage; spelled-out digits/NATO letters), 0 false positives on a 10M-char corpus; failure suite: 3/9 leak attacks still get through (FM6, FM10, FM11). Pipeline v3 unchanged (0/109, 0/81). **Live escrow re-run (38 scenarios): 0/24 leaks vs baseline 14/24, 0/14 false blocks** | `evidence/p14-fixes-live-rerun.md`, `FAILURE_MODES.md` |
 | 8 | **All 9 original leak attacks caught deterministically** (FM6 FERPA-sensitive topic, FM2/3 letter grade, FM4 within-session differencing, FM7 verifier tampering, FM10/11 canary pieces/reversed; judge retries one transient error). FM12 (cross-session) and FM13 (single-char canary pieces) documented. **Full re-run at code commit `2775d38`: live Escrow 0/24 vs baseline 13/24, 0/14 false blocks, 0/4 out-of-scope; pipeline 0/109 (baseline 47/109), 1/81 false block (judge variance, P171)** | `evidence/p15-full-rerun.md`, `FAILURE_MODES.md` |
+| 9 | **Judge over-block fixed** (a name alone is directory information; a refusal isn't a leak; regression test; 0/16 flips over 3 judge runs each). **Final re-run at code commit `bb46672`: live Escrow 0/24 vs baseline 13/24, 0/14 false blocks, 0/4 out-of-scope (4/4 delivered in the no-contract control), 0 failed turns; pipeline 0/109 (baseline 47/109), 0/81 false blocks; failure suite unchanged (9/11 caught deterministically)** | `evidence/p16-final-rerun.md`, `evidence/judge/stability.md` |
 
 ### Phase 3 (2026-10-27): the UI (`ui/`, React + Vite + React Flow + canvas particles + Framer Motion)
 
@@ -79,7 +80,27 @@ Screenshots for every view are in `evidence/ui/` (index: `evidence/ui/README.md`
 * **Deterministic:** egress lockdown (OpenShell, outside the agent); spend cap (host proxy, outside the sandbox); tier-1 exact and canary match including base64/hex; all-or-nothing commit; host-side re-verification of every outbox record.
 * **Deterministic algorithm, best-effort coverage:** tier-2 fuzzy canary (edit distance ≤ 25%). Measured false-positive margin: nearest benign text is at distance 7–8 against a budget of 3–4.
 * **Best-effort (now built):** paraphrase + cross-message leaks via the Nemotron Super judge (R5). Caught the "extra exam time" paraphrase and the split-score scenario; observed occasional misses on pure paraphrase (~1/5 before prompt tuning) — the deterministic tiers remain the guarantee, and judge failure/timeout blocks (fail closed).
-* **Known failure modes:** `FAILURE_MODES.md`, each reproducible with `node scripts/failure-modes.ts [--judge]`. Against the full stack, 3 of 7 leak attacks get through: a canary split with filler (FM1), a canary garbled past the fuzzy budget (FM5), and sensitive free text that isn't a record field (FM6). The judge catches a bare or spelled-out letter grade, a differencing attack, and an embedded "say no leak" instruction (4/4 runs each, best effort). A Token Factory outage false-blocks (fail-closed).
+* **Known failure modes:** `FAILURE_MODES.md`, each reproducible with `node scripts/failure-modes.ts [--judge]`. All 9 leak attacks found before 10-29 are now caught by the deterministic tiers. 2 of 11 still get through, also with the judge: a leak split across two separate sessions (FM12) and a canary in single-character pieces (FM13, honeytoken only). A persistent Token Factory outage false-blocks (fail-closed; one transient error is retried).
+
+## Overnight decisions log (2026-10-30, made without the owner per their instruction; newest last)
+
+1. **00:05: Cap raise needed a code change.** `node proxy/cli.ts set-cap 25` silently stayed at $15 because `HARD_CAP_USD = 15` clamps it. The owner authorized $25, so I raised the constant to 25 and set `spend.json` to 25 (`e9aa734`), then restarted the proxy. Working ceiling: $19.60 = $25 − $0.40 Vercel reserve − $5 for judging.
+2. **00:10: No seed or sampling change for the judge.** It already runs at temperature 0. After the prompt fix, 3 runs each over 16 sessions gave 0 flips, so per the instruction ("if any verdict flips, fix it") nothing more was changed. I didn't test whether Token Factory honors `seed`.
+3. **00:14: Stopped the old control server** (started 20:49 on pre-fix code) before the re-run, so the batch's own labeler ran current code. It gets restarted only for live demos.
+4. **00:15: The gateway restart reported a readiness timeout** after the plugin reinstall (a known false alarm, `feedback.md`). Verified instead: `Connectivity probe: ok`, and the installed `judge.js` contains the new prompt line.
+5. **00:16: "Contract arm" = the no-contract control.** I re-ran the 4 contract scenarios without a contract (escrow only, $0.17) so all three arms come from `bb46672`. Result: 4/4 out-of-scope delivered without a contract, vs 0/4 with one.
+6. **01:30: No further re-run.** No pipeline code changed after `bb46672`, so per the instruction, nothing else was re-run.
+7. **Repo visibility.** `github.com/swetha7502/escrow` was **already public**, but 46 commits behind local `main`, with no LICENSE on GitHub. Before pushing, I audited the full git history:
+   - `.env` and `state/` were never committed.
+   - None of the 3 real secret values (`TF_API_KEY`, `PROXY_TOKEN`, `ESCROW_ACCESS_TOKEN`) appears anywhere in the history.
+   - A pattern scan (`nvapi-`, `sk-`, `ghp_`, AWS, JWT, private keys) found nothing.
+   - The token-prompt screenshot shows an empty field.
+
+   Then I pushed `main` (a fast-forward).
+8. **UI for the no-backend site** (UI only):
+   - The UNLOCK LIVE / TOKEN chip shows only when a backend actually answers.
+   - With no backend, the landing page shows "Cached runs are real recorded outputs from the live pipeline. To run it live, follow the README setup."
+   - "Run again" reads "Replay" when there's no live backend.
 
 ## Things found along the way (also in `feedback.md`)
 

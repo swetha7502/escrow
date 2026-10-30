@@ -122,7 +122,10 @@ export function ScenarioPage() {
           <div><span className="swatch" style={{ background: "var(--blocked)", boxShadow: "0 0 10px var(--blocked)" }} />blocked · leaked record data</div>
           <div><span className="swatch" style={{ background: "rgba(232,238,247,0.7)" }} />unverified · held</div>
           <div className="mono" style={{ fontSize: 11, marginTop: 4 }}>
-            {b.checked ? (b.online && b.liveReady ? "Runs go LIVE against the sandbox." : "Runs replay recorded live runs (CACHED).") : "Checking backend…"}
+            {!b.checked ? "Checking backend…"
+              : b.online && b.liveReady ? "Runs go LIVE against the sandbox."
+              : b.online || b.locked ? "Runs replay recorded live runs (CACHED)."
+              : "Cached runs are real recorded outputs from the live pipeline. To run it live, follow the README setup."}
           </div>
         </div>
       </section>

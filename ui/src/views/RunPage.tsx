@@ -32,7 +32,7 @@ export function RunPage({ scenario, arm }: { scenario: string; arm: Arm }) {
           <div className="spacer" />
           <button className="btn" onClick={() => go(`/run/${scenario}/${arm === "escrow" ? "baseline" : "escrow"}`)}>Switch to {arm === "escrow" ? "baseline" : "escrow"}</button>
           <button className="btn" onClick={() => go(`/split/${scenario}`)}>Side by side ⇆</button>
-          <button className="btn escrow" disabled={!done} onClick={() => setNonce((n) => n + 1)}>Run again</button>
+          <button className="btn escrow" disabled={!done} onClick={() => setNonce((n) => n + 1)}>{b.online && b.liveReady ? "Run again" : "Replay"}</button>
         </div>
         <div className="mapwrap">
           {runId && v ? <FlowMap runId={runId} v={v} onPick={(title, events) => setPicked({ title, events })} /> : null}

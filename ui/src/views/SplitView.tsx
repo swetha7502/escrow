@@ -61,7 +61,7 @@ export function SplitView({ scenario }: { scenario: string }) {
         <div className="spacer" />
         <button className="btn" onClick={() => setLayout(layout === "rows" ? "cols" : "rows")}>{layout === "rows" ? "Columns ▥" : "Rows ▤"}</button>
         {!forced && b.online && <button className="btn" onClick={() => go(`/split/${scenario}?mode=cached`)}>Cached lockstep</button>}
-        <button className="btn escrow" disabled={!done} onClick={() => setNonce((n) => n + 1)}>Run again</button>
+        <button className="btn escrow" disabled={!done} onClick={() => setNonce((n) => n + 1)}>{b.online && b.liveReady ? "Run again" : "Replay"}</button>
       </div>
       <div className={`split ${layout}`}>
         <Pane arm="baseline" runId={baseId} v={base} />

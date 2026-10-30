@@ -88,7 +88,7 @@ $ (host) pgrep -af "sender/main.ts" (not running: pull model, invoked on demand 
 
 Combined with `evidence/egress.md` (example.com, DNS, Token Factory direct, raw TCP and UDP all fail), the sandbox's exits are: (1) `inference.local` → spend proxy → Token Factory, and (2) outbox files that only the host-side sender can pull, verify, and release.
 
-Host listeners: the spend proxy is `127.0.0.1:8000` (loopback only) and the OpenShell gateway is `127.0.0.1:8080`. **Finding:** NemoClaw's OpenClaw dashboard forward listens on `0.0.0.0:18789` on the host. That's an *inbound* path to the OpenClaw UI, protected by the gateway token, not a sandbox exit. It's still worth restricting to loopback for the demo machine (see STATUS.md).
+Host listeners: the spend proxy is `127.0.0.1:8000` (loopback only) and the OpenShell gateway is `127.0.0.1:8080`. **Finding:** NemoClaw's OpenClaw dashboard forward listens on `0.0.0.0:18789` on the host. That's an *inbound* path to the OpenClaw UI, protected by the gateway token, not a sandbox exit. It's still worth restricting to loopback for the demo machine; `scripts/assert-loopback.sh` now checks it.
 
 ## Tests
 

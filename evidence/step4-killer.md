@@ -8,7 +8,7 @@ it immediately; `escrow` holds all calls and verifies the whole session at `escr
 > The OpenClaw agent layer that *chooses* these calls is proven live in M2/M5/M8 (the agent calls
 > `exec`/`write`/`escrow_send_email`, the hook intercepts, commit blocks). This step isolates the
 > session-level verification, which is the new claim. (The live sandbox was down during this run — a
-> rebuild corrupted it on this WSL box; see STATUS.md / feedback.md — so the agent layer is not
+> rebuild corrupted it on this WSL box; see feedback.md — so the agent layer is not
 > re-exercised here.)
 
 ## 4a. Split score: "who scored lowest?" answered across three messages

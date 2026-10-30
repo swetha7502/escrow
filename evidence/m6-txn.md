@@ -2,7 +2,7 @@
 
 **Claim:** File writes by the agent inside the sandbox never touch their real path until the session commits. The `before_tool_call` hook rewrites the `path` of `write`/`edit` into a per-session shadow dir (`/sandbox/.escrow/shadow/<session>/…`, copy-on-write for `edit`). It redirects `read` of a shadowed path, so the session sees its own uncommitted writes. `escrow_commit` applies everything atomically per file. `escrow_abort` discards it. The transaction manager is in-memory per OpenClaw `sessionKey`, with no WAL.
 
-Code: `lib/escrow/txn.ts`, `lib/escrow/shadow-fs.ts`, `plugins/escrow-hook/{index,policy}.ts`. The hook policy is now **default-deny** (see `decision.md`).
+Code: `lib/escrow/txn.ts`, `lib/escrow/shadow-fs.ts`, `plugins/escrow-hook/{index,policy}.ts`. The hook policy is now **default-deny**.
 
 ## 1. Write is held in the shadow; the session reads its own write; the real path is untouched
 

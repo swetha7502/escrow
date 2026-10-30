@@ -7,3 +7,9 @@ plugins/*/dist/
 ui/dist/
 ui/.env
 scripts/.verify-old.ts
+
+# Working notes kept locally, not published
+STATUS.md
+MORNING.md
+decision.md
+CLAUDE.md

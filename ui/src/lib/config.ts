@@ -5,6 +5,8 @@ const env = import.meta.env;
 const BUILD_BASE = String(env.VITE_API_BASE ?? "").replace(/\/$/, "");
 const BUILD_WS = String(env.VITE_WS_URL || "");
 let runtimeBase: string | null = null;
+/** live.json says {"apiBase": null}: the hosted site is deliberately cached-only (not a backend that went down) */
+let cachedOnly = false;
 
 /** Only an https origin (or a loopback http one, for local checks) is accepted from live.json */
 export function parseLiveConfig(raw: unknown): string | null {
@@ -23,11 +25,12 @@ export async function loadRuntimeConfig(): Promise<void> {
   const t = setTimeout(() => ctl.abort(), 4000);
   try {
     const r = await fetch("./live.json", { cache: "no-store", signal: ctl.signal });
-    if (r.ok) runtimeBase = parseLiveConfig(await r.json());
+    if (r.ok) { const raw = await r.json(); runtimeBase = parseLiveConfig(raw); cachedOnly = (raw as { apiBase?: unknown } | null)?.apiBase === null; }
   } catch { /* no live.json: build-time settings */ } finally { clearTimeout(t); }
 }
 
 export const apiBase = (): string => runtimeBase ?? BUILD_BASE;
+export const isCachedOnly = (): boolean => cachedOnly;
 export const wsUrl = (): string => {
   if (runtimeBase) return runtimeBase.replace(/^http/, "ws") + "/events";
   if (BUILD_WS) return BUILD_WS;

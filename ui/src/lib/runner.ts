@@ -2,7 +2,7 @@
 // else (backend unreachable, busy, failing) becomes a local replay of the bundled cached run, flagged cached.
 import { api, backend, backendReady, hub } from "./backend";
 import { cachedRun, specOf } from "./data";
-import { REPLAY_MAX_GAP_MS } from "./config";
+import { REPLAY_MAX_GAP_MS, isCachedOnly } from "./config";
 import type { Arm, Contract, UiEvent } from "./types";
 
 export interface RunInfo { id: string; scenario: string; arm: Arm; local: boolean }
@@ -22,7 +22,7 @@ export async function startRun(scenario: string, arm: Arm, opts: { mode?: "auto"
     try { why = sessionStorage.getItem("escrow.fallback"); sessionStorage.removeItem("escrow.fallback"); } catch { /* storage unavailable */ }
     reason = why ? `fell back from live: ${why}` : "cached run requested";
   }
-  else if (!b.online) reason = `backend unreachable${b.reason ? ` (${b.reason})` : ""}`;
+  else if (!b.online) reason = isCachedOnly() ? "hosted demo; live runs on request" : `backend unreachable${b.reason ? ` (${b.reason})` : ""}`;
   else {
     try {
       const rec = await api<{ id: string }>("/api/runs", { method: "POST", body: JSON.stringify({ scenario, arm, mode: "auto" }), timeoutMs: 30000 });

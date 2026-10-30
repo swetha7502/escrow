@@ -16,4 +16,4 @@ sampling change was made. Full output: `stability-run1.txt`.
 
 **Limit:** 3 runs per session can't rule out rare variance. P171 flipped 1 time in 3 before the change, so 0 of 3
 here is consistent with a fix but isn't proof. The full re-run (pipeline: 81 clean tasks through the judge) is the
-larger check, and its count is reported in the README.
+larger check: at `bb46672` it gave **0/81** false blocks (`evidence/p16-final-rerun.md`).

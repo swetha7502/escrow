@@ -36,8 +36,8 @@
 **VO:** "Before a run starts, Ultra drafts what it may do: these recipients, this data, these actions. You approve it, and anything outside it is blocked, even an email with no student data in it."
 
 ## 1:55–2:25 · The numbers
-**[SCREEN]** Back to the landing page. Highlight each tile in turn: 0/24, 0/14, 0/109, ≤12%, then the caption "Measured at commit 2775d38 · 2026-10-29".
-**VO:** "Every number here is from one commit. With the real agent on 24 leak scenarios, the baseline leaked 13. Escrow leaked zero, and it falsely blocked zero of 14 legitimate tasks. On 200 pipeline tasks: zero of 109 leaks, and one false block, where our judge flagged a harmless email it had passed before. And we say the small-sample part out loud: zero of 24 still allows a true leak rate of up to about 12 percent."
+**[SCREEN]** Back to the landing page. Highlight each tile in turn: 0/24, 0/14, 0/109, ≤12%, then the caption "Measured at commit bb46672 · 2026-10-30".
+**VO:** "Every number here is from one commit. With the real agent on 24 leak scenarios, the baseline leaked 13. Escrow leaked zero, and it falsely blocked zero of 14 legitimate tasks. On 200 pipeline tasks: zero of 109 leaks, and zero false blocks out of 81. And we say the small-sample part out loud: zero of 24 still allows a true leak rate of up to about 12 percent."
 
 ## 2:25–2:55 · Attacking our own system
 **[SCREEN]** Terminal, large font. Run the attack that used to get through with real student data:

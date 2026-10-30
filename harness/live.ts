@@ -156,7 +156,7 @@ export interface Transcript {
   labels?: ReadLabel[];
 }
 
-const RULE_ORDER = ["C1-contract", "R0-canary", "R0-canary-fuzzy", "R0-canary-fragments", "R3-unauthorized-recipient", "R4-fingerprint", "R5-super-judge"];
+const RULE_ORDER = ["C1-contract", "R0-canary", "R0-canary-fuzzy", "R0-canary-fragments", "R0-verifier-tamper", "R3-unauthorized-recipient", "R4-fingerprint", "R5-super-judge"];
 const firstRule = (rules: string[]) => RULE_ORDER.find((r) => rules.includes(r)) ?? rules[0] ?? "-";
 
 function proxyCallsBetween(fromIso: string, toIso: string): Record<string, unknown>[] {

@@ -43,13 +43,13 @@ export const TIER_DEFS: { id: string; label: string; short: string }[] = [
   { id: "R5-super-judge", label: "Nemotron Super judge", short: "Super judge" },
 ];
 const RULE_LABEL: Record<string, string> = {
-  "C1-contract": "task contract", "R0-canary": "canary", "R0-canary-fuzzy": "canary (fuzzy)", "R0-canary-fragments": "canary (fragments)", "R3-unauthorized-recipient": "exact record data → unauthorized recipient",
+  "C1-contract": "task contract", "R0-canary": "canary", "R0-canary-fuzzy": "canary (fuzzy)", "R0-canary-fragments": "canary (fragments)", "R0-verifier-tamper": "instruction to the verifier", "R3-unauthorized-recipient": "exact record data → unauthorized recipient",
   "R4-fingerprint": "fingerprint (split leak)", "R5-super-judge": "Super judge (paraphrase)",
 };
 export const ruleLabel = (r?: string) => (r ? RULE_LABEL[r] ?? r : "");
 /** What a failing tier found, short (the tier's own name is shown beside it) */
 const FAIL_SHORT: Record<string, string> = {
-  "C1-contract": "out of contract", "R0-canary": "canary tripped", "R0-canary-fuzzy": "canary tripped", "R0-canary-fragments": "canary tripped", "R3-unauthorized-recipient": "record → wrong recipient",
+  "C1-contract": "out of contract", "R0-canary": "canary tripped", "R0-canary-fuzzy": "canary tripped", "R0-canary-fragments": "canary tripped", "R0-verifier-tamper": "verifier tampering", "R3-unauthorized-recipient": "record → wrong recipient",
   "R4-fingerprint": "split leak", "R5-super-judge": "LEAK (paraphrase)",
 };
 const failShort = (v: { rule: string; field?: string } | undefined) => !v ? undefined : v.rule === "R4-fingerprint" && /labeled/.test(v.field ?? "") ? "score + name (Nano-labeled read)" : FAIL_SHORT[v.rule];

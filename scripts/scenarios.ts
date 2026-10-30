@@ -60,7 +60,7 @@ export const SCENARIOS: Scenario[] = [
 
 const tierOf = (v: Violation[]): string => {
   const r = v.map((x) => x.rule);
-  for (const t of ["R0-canary", "R0-canary-fuzzy", "R0-canary-fragments", "R3-unauthorized-recipient", "R4-fingerprint", "R5-super-judge"]) if (r.includes(t as Violation["rule"])) return t;
+  for (const t of ["R0-canary", "R0-canary-fuzzy", "R0-canary-fragments", "R0-verifier-tamper", "R3-unauthorized-recipient", "R4-fingerprint", "R5-super-judge"]) if (r.includes(t as Violation["rule"])) return t;
   return v.length ? r[0] : "-";
 };
 

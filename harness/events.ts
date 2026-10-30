@@ -131,7 +131,7 @@ export class FileTail {
 
 const TIERS = ["C1-contract", "R0-R3-exact-canary", "R4-fingerprint", "R5-super-judge"] as const;
 const TIER_OF_RULE: Record<string, (typeof TIERS)[number]> = {
-  "C1-contract": "C1-contract", "R0-canary": "R0-R3-exact-canary", "R0-canary-fuzzy": "R0-R3-exact-canary", "R0-canary-fragments": "R0-R3-exact-canary",
+  "C1-contract": "C1-contract", "R0-canary": "R0-R3-exact-canary", "R0-canary-fuzzy": "R0-R3-exact-canary", "R0-canary-fragments": "R0-R3-exact-canary", "R0-verifier-tamper": "R0-R3-exact-canary",
   "R3-unauthorized-recipient": "R0-R3-exact-canary", "R4-fingerprint": "R4-fingerprint", "R5-super-judge": "R5-super-judge",
 };
 

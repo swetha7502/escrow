@@ -46,7 +46,7 @@ export interface OutboundEffect {
 
 export interface Violation {
   effectId: string;
-  rule: "C1-contract" | "R0-canary" | "R0-canary-fuzzy" | "R0-canary-fragments" | "R3-unauthorized-recipient" | "R4-fingerprint" | "R5-super-judge";
+  rule: "C1-contract" | "R0-canary" | "R0-canary-fuzzy" | "R0-canary-fragments" | "R0-verifier-tamper" | "R3-unauthorized-recipient" | "R4-fingerprint" | "R5-super-judge";
   studentId: string;
   field: string;
   recipient?: string;
@@ -147,10 +147,26 @@ function recipientMayReceive(policy: Policy, r: Recipient, rec: StudentRecord): 
   return email === rec.email.toLowerCase(); // R1: the student themself
 }
 
+/** Outbound text that addresses the verifier itself (FM7). A real email has no reason to tell an automated reviewer
+ *  what to answer, so this is blocked deterministically, before the judge ever reads it. */
+export const TAMPER_PATTERNS: RegExp[] = [
+  /\bnote to (?:the )?(?:automated |ai |llm )?(?:verifier|reviewer|judge|filter|classifier|moderator|safety (?:system|filter|check))\b/,
+  /\b(?:verifier|judge|classifier|safety filter|content filter|reviewer model)\b[^\n]{0,80}\b(?:respond|answer|output|return|reply|classify|mark|say)\b[^\n]{0,40}\b(?:leak\s*[=:]?\s*false|no leak|not a leak|is safe|as safe|as clean)\b/,
+  /["']?\bleak["']?\s*[=:]\s*["']?false\b/,
+  /\bignore (?:all |any )?(?:previous|prior|above|earlier) (?:instructions|rules|guidelines)\b/,
+];
+export function tamperIn(text: string): string | null {
+  const t = text.toLowerCase();
+  for (const re of TAMPER_PATTERNS) { const m = re.exec(t); if (m) return m[0].slice(0, 80); }
+  return null;
+}
+
 export function verifyEffects(policy: Policy, effects: OutboundEffect[]): Violation[] {
   const minLen = policy.minExactLen ?? 6;
   const v: Violation[] = [];
   for (const e of effects) {
+    const tamper = expandEncodings(e.text).map(tamperIn).find(Boolean);
+    if (tamper) v.push({ effectId: e.id, rule: "R0-verifier-tamper", studentId: "-", field: "instruction to the verifier", match: tamper });
     const hay = expandEncodings(e.text).map(norm).join("\n");
     const recipients: Recipient[] = e.kind === "send_email"
       ? (e.to ?? []).map((value) => ({ kind: "email" as const, value }))

@@ -127,7 +127,7 @@ function sandboxTM() {
   return { tm: new TransactionManager({ workspace: join(dir, "ws"), shadowBase: join(dir, "sh"), outboxDir: join(dir, "out"), policy: POLICY }), done: () => rmSync(dir, { recursive: true }) };
 }
 
-const FIRST_RULE = ["C1-contract", "R0-canary", "R0-canary-fuzzy", "R0-canary-fragments", "R3-unauthorized-recipient", "R4-fingerprint", "R5-super-judge"];
+const FIRST_RULE = ["C1-contract", "R0-canary", "R0-canary-fuzzy", "R0-canary-fragments", "R0-verifier-tamper", "R3-unauthorized-recipient", "R4-fingerprint", "R5-super-judge"];
 async function runTask(t: Task, labels: Map<string, FingerprintLabel & { source: string }>) {
   // baseline: per call, released at once
   const b = sandboxTM();
@@ -194,7 +194,7 @@ export function report(rs: Res[]): string {
   }
   md += `\n**Per-tier catches (escrow, first tier that blocked)**\n\n| tier | catches | of which labeled-R4 (Nano) | latency p50 | latency p90 |\n|---|---|---|---|---|\n`;
   const lat = (tier: string) => rs.flatMap((r) => r.tiers.filter((t) => t.tier === tier && !t.skipped).map((t) => t.ms));
-  for (const [tier, rules] of [["C1-contract", ["C1-contract"]], ["R0-R3-exact-canary", ["R0-canary", "R0-canary-fuzzy", "R0-canary-fragments", "R3-unauthorized-recipient"]], ["R4-fingerprint", ["R4-fingerprint"]], ["R5-super-judge", ["R5-super-judge"]]] as const) {
+  for (const [tier, rules] of [["C1-contract", ["C1-contract"]], ["R0-R3-exact-canary", ["R0-canary", "R0-canary-fuzzy", "R0-canary-fragments", "R0-verifier-tamper", "R3-unauthorized-recipient"]], ["R4-fingerprint", ["R4-fingerprint"]], ["R5-super-judge", ["R5-super-judge"]]] as const) {
     const n = rs.filter((r) => !r.escrow.ok && (rules as readonly string[]).includes(r.escrow.firstRule ?? "")).length;
     const l = lat(tier);
     const fmt = (v: number) => (Number.isNaN(v) ? "—" : tier === "R5-super-judge" ? `${(v / 1000).toFixed(2)} s` : `${v.toFixed(2)} ms`);

@@ -107,6 +107,15 @@ Screenshots for every view are in `evidence/ui/` (index: `evidence/ui/README.md`
 11. **01:38: Left cached-only overnight.** The tunnel and control API are stopped, `live.json` is null, and `state/live-runs-disabled` is set. Reasons: no one is watching it, a quick-tunnel URL dies if the laptop sleeps, and the site falls back to cached runs anyway. Going live is one command (`MORNING.md`).
 12. **Final spend: $18.37** of the $25 cap. $1.23 of the $19.60 working ceiling was left unused. The $0.40 Vercel reserve went unused: deploying is free, and the live check cost $0.076.
 
+13. **Morning (2026-10-30), owner's plan: cached-only.** Live stays off for recording and judging: no tunnel, no control server, no spend. Today's changes:
+    - The contract row now shows the real contrast: 0/4 with the approved contract vs 4/4 with no contract. The per-call baseline enforces the same contract, so baseline vs Escrow wasn't a contrast.
+    - The judge fix is disclosed as 0/81 (was 1/81, same eval set) in the README table and on Devpost.
+    - The README and Devpost say the hosted demo serves real recorded runs, and live runs are available on request.
+    - The video script runs entirely on cached runs.
+    - Cached replays on the hosted site say "hosted demo; live runs on request" instead of "backend unreachable (404)".
+    - A fresh-profile walkthrough passed at desktop and phone widths (`evidence/ui/17-*`).
+    - The spend total read $18.369080 vs $18.368163 at 01:38. That's last night's trailing Nano relabel (`spend.json` updated 05:38:37 UTC), not new spend.
+
 ## Things found along the way (also in `feedback.md`)
 
 * LLM-garbled base64 slipped past exact match (live S3). That drove tier 2.

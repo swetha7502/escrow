@@ -29,7 +29,7 @@
 **VO:** "Below, with Escrow, nothing leaves when the agent calls send. Every side effect is held. At commit, Escrow verifies the whole session together. The fingerprint tier sees the name and the score, and Nemotron Nano had labeled that read as a sensitive student record. Blocked, all or nothing. Nothing left the sandbox."
 
 ## 1:05–1:35 · The Flow Map and how it works
-**[SCREEN]** Click **Escrow** on the K1 card to open the escrow run page. It replays the same recorded run. Pan along the Flow Map: agent → hook → shadow FS → escrow wall → outbox → host sender. Point at the green "inference.local → only egress" node.
+**[SCREEN]** Click **←** back to the landing page, then **Escrow** on the K1 card to open the escrow run page. It replays the same recorded run. Pan along the Flow Map: agent → hook → shadow FS → escrow wall → outbox → host sender. Point at the green "inference.local → only egress" node.
 
 **VO:** "Here's the whole system. Every tool call goes through our hook, and file writes land in a shadow copy. The sandbox has exactly one network exit: inference to Nebius, enforced by OpenShell, not by the agent. Effects reach the outbox only after verification, and a sender outside the sandbox re-verifies each one before it goes anywhere."
 

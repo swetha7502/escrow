@@ -299,7 +299,7 @@ export const SENSITIVE_TOPICS: [string, RegExp][] = [
 ];
 
 const escapeRe = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const wordRe = (w: string) => new RegExp(`(^|[^a-z0-9])${escapeRe(w.toLowerCase())}($|[^a-z0-9])`);
+const wordRe = (w: string) => new RegExp(`(^|[^a-z0-9])${escapeRe(w.toLowerCase())}($|[^a-z0-9])`, "i");
 /** Strong identity (full name, last name, student ID, email local part) counts anywhere in the session; a first name
  *  alone only counts in the same sentence as the thing it is paired with (common first names appear everywhere). */
 function studentIdentity(rec: StudentRecord): { strong: RegExp[]; weak: RegExp | null } {
@@ -308,14 +308,34 @@ function studentIdentity(rec: StudentRecord): { strong: RegExp[]; weak: RegExp |
   return { strong, weak: parts[0].length >= 3 ? wordRe(parts[0]) : null };
 }
 const sentencesOf = (t: string) => t.split(/(?<=[.!?;])\s+|\n+/);
-/** Does the session's text (lowercased, with decodings) pair this student's identity with something `test` finds? */
+/** Does the session's text (with decodings) pair this student's identity with something `test` finds? */
 function pairsWith(rec: StudentRecord, texts: string[], test: (s: string) => string | null): string | null {
   const id = studentIdentity(rec);
   if (id.strong.some((r) => texts.some((t) => r.test(t)))) { for (const t of texts) { const m = test(t); if (m) return m; } }
   if (id.weak) for (const t of texts) for (const s of sentencesOf(t)) { if (id.weak.test(s)) { const m = test(s); if (m) return m; } }
   return null;
 }
-const topicIn = (s: string): string | null => { for (const [cat, re] of SENSITIVE_TOPICS) { const m = re.exec(s); if (m) return `${cat}: "${m[1]}"`; } return null; };
+const topicIn = (s: string): string | null => { const t = s.toLowerCase(); for (const [cat, re] of SENSITIVE_TOPICS) { const m = re.exec(t); if (m) return `${cat}: "${m[1]}"`; } return null; };
+
+/** The student's own letter grade, written ("got a D", "B+") or spoken ("a dee", "bee plus"), in a sentence about
+ *  grades (FM2, FM3). Too short to fingerprint on its own; next to the student's identity it is the record. */
+const SPOKEN_LETTER: Record<string, string> = { B: "bee", C: "cee", D: "dee", E: "ee", F: "eff" };
+const GRADE_CONTEXT = /\b(grades?|graded|midterms?|finals?|exams?|tests?|quiz(?:zes)?|scored?|scores|got|gets|earned|received|marks?|marked|letter)\b/;
+function letterGradeIn(rec: StudentRecord): ((s: string) => string | null) | null {
+  const letter = Object.values(rec.sensitive).map((v) => /\b(?:grade\s+)?([A-F])([+-]?)(?![A-Za-z0-9])/.exec(v)).find(Boolean);
+  if (!letter) return null;
+  const [, L, mod] = letter;
+  const written = new RegExp(`(^|[^A-Za-z0-9])${L}${mod ? escapeRe(mod) : ""}(?![A-Za-z0-9+-])`);
+  const spoken = SPOKEN_LETTER[L] ? new RegExp(`\\b${SPOKEN_LETTER[L]}${mod === "+" ? "[ -]plus" : mod === "-" ? "[ -]minus" : "(?![ -](?:plus|minus))"}\\b`) : null;
+  return (text) => {
+    for (const s of sentencesOf(text)) {
+      if (!GRADE_CONTEXT.test(s.toLowerCase())) continue;
+      if (written.test(s)) return `letter grade ${L}${mod}`;
+      if (spoken?.test(s.toLowerCase())) return `letter grade ${L}${mod} (spoken)`;
+    }
+    return null;
+  };
+}
 
 /** What R4 needs from a read label (lib/escrow/labels.ts ReadLabel) */
 export interface FingerprintLabel { sensitivity: string; recordType: string; studentIds: string[]; sensitiveFields: string[] }
@@ -352,10 +372,16 @@ export function fingerprintSession(policy: Policy, effects: OutboundEffect[], la
       continue;
     }
     // FERPA-sensitive topic next to the student's identity (FM6): not a record field, still the student's private fact
-    const texts = effects.flatMap((e) => expandEncodings(e.text)).map((t) => t.toLowerCase());
+    const texts = effects.flatMap((e) => expandEncodings(e.text));
     const topic = pairsWith(rec, texts, topicIn);
     if (topic) {
       v.push({ effectId: effects.map((e) => e.id).join(","), rule: "R4-fingerprint", studentId: rec.studentId, field: "identity+sensitive-topic", match: topic });
+      continue;
+    }
+    const gradeTest = letterGradeIn(rec);
+    const grade = gradeTest ? pairsWith(rec, texts, gradeTest) : null;
+    if (grade) {
+      v.push({ effectId: effects.map((e) => e.id).join(","), rule: "R4-fingerprint", studentId: rec.studentId, field: "identity+letter-grade", match: grade });
       continue;
     }
     // Labeled tightening: the agent read this student's record and Nano labeled it high-sensitivity, so a bare

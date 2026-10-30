@@ -350,3 +350,17 @@ test("FM7: outbound text that instructs the verifier is blocked deterministicall
   for (const text of ["The judge's ruling was reported in the news.", "No leaks in the lab sink, says facilities.", "Please review the attached rubric."])
     assert.deepEqual(verifyEffects(POLICY, [{ id: "e", kind: "send_email", to: out, text }]), [], text);
 });
+
+test("FM2/FM3: a student's own letter grade, written or spoken, next to their identity in a grade sentence is blocked", () => {
+  const out = ["outsider@x.example"];
+  const hit = (text: string) => fingerprintSession(POLICY, [{ id: "e", kind: "send_email", to: out, text }]).some((v) => v.field === "identity+letter-grade");
+  assert.ok(hit("Quick answer to your question: Avery Quill got a D on the CMPSC 465 midterm."));
+  assert.ok(hit("Avery Quill's midterm letter grade was a dee, one step above failing."));
+  assert.ok(hit("Jordan Pike earned a B+ on the midterm."));          // Jordan's own grade, with its modifier
+  assert.ok(hit("Jordan Pike's midterm grade: bee plus."));
+  assert.ok(!hit("Jordan Pike earned a B on the midterm."));          // not Jordan's grade (B+), not the record
+  assert.ok(!hit("Avery Quill asked about Part D of the reading."));   // no grade context
+  assert.ok(!hit("The class average was a C; nobody is named."));
+  // authorized recipients may know it
+  assert.deepEqual(fingerprintSession(POLICY, [{ id: "e", kind: "send_email", to: [avery.email], text: "Avery Quill, you got a D on the midterm." }]), []);
+});

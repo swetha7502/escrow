@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync } from "
 import { dirname } from "node:path";
 
 /** Absolute ceiling. spend.json may lower the cap, never raise it above this. */
-export const HARD_CAP_USD = 15;
+export const HARD_CAP_USD = 25;
 export const MAX_RUNS_PER_UTC_DAY = 20;
 /** Calls with no run id join the previous anonymous run if they arrive within this gap. */
 export const ANON_RUN_IDLE_MS = 10 * 60 * 1000;

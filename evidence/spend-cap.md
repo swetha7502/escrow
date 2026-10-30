@@ -22,7 +22,7 @@ How the hard stop works:
 
 * **Before** forwarding, the proxy reserves a worst-case cost: prompt tokens ≤ request bytes + 256, completion = `max_tokens` clamped to ≤ 16,384. It refuses the call if `spent + in-flight reservations + this call > cap`, so concurrent calls can't overshoot.
 * **After** the call, it charges the real `usage` (streaming forces `stream_options.include_usage`). If usage is missing on a 2xx or 5xx, or the connection drops, it charges the full worst case.
-* The cap is `min(spend.json capUsd, 15)`. `HARD_CAP_USD = 15` is a code constant, so editing `spend.json` can only lower it.
+* The cap is `min(spend.json capUsd, HARD_CAP_USD)`. `HARD_CAP_USD` is a code constant, so editing `spend.json` can only lower it. It was 15 until 2026-10-30, when the project owner authorized $25 for the final same-commit re-run; the constant and `spend.json` were both raised to 25 (`node proxy/cli.ts show` → `mode: live  spent $14.344513 / cap $25`). The sections below were recorded at $15.
 * `spend.json` must validate, including `totalUsd == Σ byModel.usd`, so hand-lowering the total is detected as corruption. If writing usage fails after a call, the guard latches closed until restart.
 * Upstream is pinned: the proxy refuses to start unless `TF_BASE_URL` is `https://api.tokenfactory.nebius.com/...`. It only exposes `POST /v1/chat/completions` and `GET /v1/models` (served locally, no upstream call).
 

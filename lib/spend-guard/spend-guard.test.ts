@@ -68,9 +68,9 @@ test("spend.json cap cannot exceed the hard cap", () => {
   const t = setup();
   const s = setCap(t.statePath, 1000);
   assert.equal(s.capUsd, HARD_CAP_USD);
-  // hand-edit above the ceiling: effective cap is still 15
+  // hand-edit above the ceiling: effective cap is still HARD_CAP_USD
   const raw = JSON.parse(readFileSync(t.statePath, "utf8"));
-  raw.capUsd = 1e6; raw.byModel = { "m/ultra": { calls: 1, promptTokens: 0, completionTokens: 0, usd: 14.999 } }; raw.totalUsd = 14.999;
+  raw.capUsd = 1e6; raw.byModel = { "m/ultra": { calls: 1, promptTokens: 0, completionTokens: 0, usd: HARD_CAP_USD - 0.001 } }; raw.totalUsd = HARD_CAP_USD - 0.001;
   writeFileSync(t.statePath, JSON.stringify(raw));
   const d = t.guard.check({ model: "m/ultra", maxUsage: small });
   assert.equal(d.ok, false);

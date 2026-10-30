@@ -1,6 +1,6 @@
 // Connection to the Escrow control API + event stream. Every call is failure-safe: if the backend is missing,
 // slow, or errors, callers get a clear status and the UI falls back to bundled cached runs.
-import { API_BASE, WS_URL } from "./config";
+import { apiBase, loadRuntimeConfig, wsUrl } from "./config";
 import type { UiEvent } from "./types";
 
 export interface Health {
@@ -46,7 +46,7 @@ export async function api<T>(path: string, init?: RequestInit & { timeoutMs?: nu
   const timer = setTimeout(() => ctl.abort(), init?.timeoutMs ?? 8000);
   try {
     const tok = getToken();
-    const res = await fetch(`${API_BASE}${path}`, { ...init, signal: ctl.signal, headers: { "content-type": "application/json", ...(tok ? { authorization: `Bearer ${tok}` } : {}), ...(init?.headers ?? {}) } });
+    const res = await fetch(`${apiBase()}${path}`, { ...init, signal: ctl.signal, headers: { "content-type": "application/json", ...(tok ? { authorization: `Bearer ${tok}` } : {}), ...(init?.headers ?? {}) } });
     const text = await res.text();
     let body: unknown;
     try { body = JSON.parse(text); } catch { throw new Error(`backend returned non-JSON (${res.status})`); }
@@ -84,10 +84,11 @@ let maxSeq = 0;
 let wsRetry = 0;
 
 function connectWs() {
-  if (ws || !WS_URL) return;
+  const url = wsUrl();
+  if (ws || !url) return;
   set({ ws: "connecting" });
   const tok = getToken();
-  try { ws = new WebSocket(WS_URL, tok ? ["escrow", `escrow-token.${tok}`] : ["escrow"]); } catch { ws = null; set({ ws: "off" }); return; }
+  try { ws = new WebSocket(url, tok ? ["escrow", `escrow-token.${tok}`] : ["escrow"]); } catch { ws = null; set({ ws: "off" }); return; }
   ws.onopen = () => { wsRetry = 0; set({ ws: "open" }); };
   ws.onmessage = (m) => {
     let msg: UiEvent & { backlog?: UiEvent[] };
@@ -134,6 +135,6 @@ export const backendReady = () => firstCheck ?? Promise.resolve();
 export function startBackend() {
   if (started) return;
   started = true;
-  firstCheck = checkHealth();
+  firstCheck = loadRuntimeConfig().then(checkHealth); // live.json first: it says where the backend is
   setInterval(() => { void checkHealth(); }, 15000);
 }

@@ -2,13 +2,17 @@
 # Start the public live-demo backend: control API (harness/server.ts) + Cloudflare Tunnel, but only after every
 # protection is verified on the RUNNING server. Any failed check → nothing is exposed, exit 1.
 #   infra/cloudflared/serve-public.sh --check   preflight only (starts nothing)
-#   infra/cloudflared/serve-public.sh           preflight, start the API if it isn't running, then run the tunnel
+#   infra/cloudflared/serve-public.sh           preflight, start the API if it isn't running, then run the named tunnel
+#   --quick     quick tunnel (random *.trycloudflare.com URL, no account, no ingress rules): instead of the named
+#               config, checks that the API itself answers 404 for every non-API path. Used by scripts/live-tunnel.sh.
+#   --prepare   preflight + start the API, then exit without starting any tunnel
 # Settings live in state/public.env (gitignored, mode 600; never in the UI build):
 #   ESCROW_ACCESS_TOKEN=<generated on first run>   ESCROW_UI_ORIGINS=https://<ui host>   ESCROW_TRUST_CF=1
 # Deliberately NOT sourced from .env: the API process doesn't need TF_API_KEY (only the proxy holds it).
 set -uo pipefail
 cd "$(dirname "$0")/../.."
-CHECK_ONLY=0; [[ "${1:-}" == "--check" ]] && CHECK_ONLY=1
+CHECK_ONLY=0 QUICK=0 PREPARE=0
+for a in "$@"; do case "$a" in --check) CHECK_ONLY=1 ;; --quick) QUICK=1 ;; --prepare) PREPARE=1 ;; *) echo "unknown option $a" >&2; exit 2 ;; esac; done
 CONF=infra/cloudflared/config.yml
 PUB="${ESCROW_PUBLIC_ENV:-state/public.env}"
 PORT="${ESCROW_API_PORT:-8790}"
@@ -32,8 +36,10 @@ else
 fi
 [[ "${ESCROW_TRUST_CF:-}" == "1" ]] && ok "ESCROW_TRUST_CF=1 (rate limits key on CF-Connecting-IP)" || fail "ESCROW_TRUST_CF must be 1 behind the tunnel, or every visitor shares one rate-limit bucket"
 
-# 2. tunnel config: filled in, valid, and routing only /api/* and /events to the API
+# 2. tunnel config: filled in, valid, and routing only /api/* and /events to the API (quick mode: no config; the
+#    API's own 404s are checked in step 3 instead)
 if ! command -v cloudflared >/dev/null; then fail "cloudflared not installed (see infra/cloudflared/README.md)"
+elif (( QUICK )); then ok "quick tunnel mode (cloudflared $(cloudflared --version | awk '{print $3}'))"
 elif grep -q '<' "$CONF"; then fail "$CONF still has <placeholders> (tunnel id / hostname)"
 else
   cloudflared tunnel --config "$CONF" ingress validate >/dev/null 2>&1 && ok "ingress validate" || fail "cloudflared ingress validate failed"
@@ -61,6 +67,11 @@ if [[ -n "$(ss -Hltn "sport = :$PORT")" ]]; then
   c=$(probe); [[ "$c" == "401" ]] && ok "API without token → 401" || fail "API without token → $c (a server is running WITHOUT the access token: stop it, then re-run this script)"
   c=$(probe -H "Authorization: Bearer $ESCROW_ACCESS_TOKEN"); [[ "$c" == "200" ]] && ok "API with token → 200" || fail "API with this token → $c (running server has a different token: stop it and re-run)"
   c=$(probe -H "Origin: https://not-allowed.example" -H "Authorization: Bearer $ESCROW_ACCESS_TOKEN"); [[ "$c" == "403" ]] && ok "API from a foreign origin → 403" || fail "foreign origin → $c (expected 403)"
+  # a quick tunnel forwards every path, so the API must refuse everything that isn't /api/* or /events
+  for p in / /index.html /v1/chat/completions /healthz /dashboard; do
+    c=$(curl -s -m 5 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $ESCROW_ACCESS_TOKEN" "http://127.0.0.1:$PORT$p")
+    [[ "$c" == "404" ]] && ok "API $p → 404" || fail "API $p → $c (expected 404)"
+  done
 fi
 
 # 4. nothing on the host beyond loopback, and the spend cap still in force
@@ -69,5 +80,10 @@ cap=$(curl -s -m 3 http://127.0.0.1:8000/healthz | python3 -I -c 'import json,sy
 
 if (( fails )); then echo "!! $fails check(s) failed: NOT exposing anything." >&2; exit 1; fi
 (( CHECK_ONLY )) && { echo "preflight passed (check only; nothing started)"; exit 0; }
+(( PREPARE )) && { echo "preflight passed; API up on 127.0.0.1:$PORT (no tunnel started)"; exit 0; }
+if (( QUICK )); then
+  echo "preflight passed: starting a quick tunnel to 127.0.0.1:$PORT (Ctrl-C stops it)"
+  exec cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$PORT"
+fi
 echo "preflight passed: starting the tunnel (Ctrl-C stops it; 'touch state/live-runs-disabled' makes runs cached-only)"
 exec cloudflared tunnel --config "$CONF" run

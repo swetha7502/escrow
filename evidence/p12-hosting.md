@@ -75,3 +75,40 @@ ok   spend proxy: $8.54 of $12 cap
 !! 1 check(s) failed: NOT exposing anything.
 ```
 `scripts/check-hardening.ts` re-run on 2026-10-28 with the same results as above (401 / 403 / 409 one run at a time / 429 run rate limit / live-off 503).
+
+## 2026-10-29: quick tunnel live end to end (`scripts/live-tunnel.sh --no-deploy`)
+The control server that had been running without the token was stopped. `serve-public.sh --quick --prepare` restarted it with the token from `state/public.env`, then the quick tunnel came up and `scripts/check-tunnel.ts` checked it **through the public URL**:
+```
+ok   state/public.env is mode 600
+ok   access token set (64 chars)
+ok   UI origin https://escrow-ui.vercel.app
+ok   ESCROW_TRUST_CF=1 (rate limits key on CF-Connecting-IP)
+ok   quick tunnel mode (cloudflared 2026.10.6)
+ok   config doesn't reference the proxy or the dashboard
+started harness/server.ts (pid 34975, log state/server-public.log)
+ok   API without token → 401
+ok   API with token → 200
+ok   API from a foreign origin → 403
+ok   API / → 404
+ok   API /index.html → 404
+ok   API /v1/chat/completions → 404
+ok   API /healthz → 404
+ok   API /dashboard → 404
+ok   loopback (18789/8000/8790 on 127.0.0.1)
+ok   spend proxy: $8.54 of $12 cap
+preflight passed; API up on 127.0.0.1:8790 (no tunnel started)
+== 2. quick tunnel
+tunnel: https://aid-preservation-contemporary-busy.trycloudflare.com
+== 3. end to end through the public URL
+ok   GET /api/health, no token                      → 401 { "error": "access token required", "authRequired": true, "liveRuns": "on"
+ok   GET /api/health, token                         → 200 { "proxy": { "mode": "live", "totalUsd": 8.53…, "capUs
+ok   GET /api/scenarios from https://escrow-ui.vercel.app → 200, access-control-allow-origin: https://escrow-ui.vercel.app
+ok   GET /api/health from https://evil.example      → 403
+ok   GET /                                          → 404
+ok   GET /v1/chat/completions                       → 404
+ok   GET /healthz                                   → 404
+ok   WS /events, no token                           → refused 401
+ok   WS /events, token subprotocol                  → open, first message type=hello
+tunnel OK
+```
+On the first attempt the WebSocket upgrade failed for a few seconds on a brand-new tunnel, even though HTTP already worked; the script refused to publish and stopped the tunnel. The WebSocket check now retries transport errors (never a 401). The UI reads the tunnel URL at runtime from `live.json` (`ui/src/lib/config.ts`, https origins only), so a tunnel restart republishes one file and needs no rebuild.

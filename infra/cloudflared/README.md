@@ -1,4 +1,20 @@
-# Exposing the live demo backend (not started)
+# Exposing the live demo backend
+
+## Quick tunnel (what the demo uses): one command
+
+```bash
+scripts/live-tunnel.sh            # (re)start: preflight → API with token → quick tunnel → end-to-end check → publish URL to the site
+scripts/live-tunnel.sh stop       # stop the tunnel and publish {"apiBase": null}: the site is cached-only
+scripts/live-tunnel.sh --no-deploy
+```
+- A quick tunnel needs no Cloudflare account and gets a random `https://*.trycloudflare.com` URL on every start.
+- The Vercel site reads that URL at runtime from `live.json`, so the script republishes only that file. There's no rebuild.
+- If `live.json` is null or the tunnel is unreachable, the site shows cached replays.
+- A quick tunnel has no ingress rules: it forwards every path. The launcher therefore checks that the API itself answers 404 to everything except `/api/*` and `/events`.
+- If any check through the public URL fails, the script stops the tunnel and publishes nothing.
+
+The named-tunnel setup below is the alternative if you have a domain on Cloudflare.
+
 
 The UI is a static build: host `ui/dist/` anywhere and it works fully on its own, replaying recorded runs. This tunnel is only for **live** runs from a hosted UI.
 

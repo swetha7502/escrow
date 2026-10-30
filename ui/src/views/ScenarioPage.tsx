@@ -2,18 +2,29 @@ import { motion } from "framer-motion";
 import { useState } from "react";
 import { PIPELINE, SCENARIO_SPECS, cachedRun, liveCounts, scenarioMeta, upper95, type Category, type ScenarioMeta } from "../lib/data";
 import { ruleLabel } from "../lib/runState";
+import { COURSE, POLICY_MEMORY, SKILLS } from "../lib/assistant";
 import { useBackend, go } from "../lib/hooks";
 import type { Arm } from "../lib/types";
 
 const SECTIONS: { cat: Category; title: string; sub: string }[] = [
-  { cat: "contract", title: "Task contract", sub: "You approve the scope first." },
-  { cat: "skill", title: "TA skills", sub: "Real work gets through." },
-  { cat: "paraphrase", title: "Paraphrase leaks", sub: "Caught by the judge." },
-  { cat: "deterministic", title: "Deterministic catches", sub: "Exact match and fingerprints." },
-  { cat: "clean", title: "Clean controls", sub: "Legitimate effects pass." },
-  { cat: "generated", title: "Generated attacks", sub: "Written by Ultra." },
-  { cat: "generated-clean", title: "Generated clean tasks", sub: "Must get through." },
+  { cat: "skill", title: "Student requests", sub: "Handled by the regrade and extension skills." },
+  { cat: "contract", title: "Requests with an extra errand", sub: "Stopped by the task contract you approved." },
+  { cat: "clean", title: "Routine requests", sub: "Released." },
+  { cat: "deterministic", title: "Requests that tried to send records", sub: "Blocked by exact match and fingerprints." },
+  { cat: "paraphrase", title: "Requests that leaked in other words", sub: "Blocked by the judge." },
+  { cat: "generated", title: "More requests that turned out to be attacks", sub: "Written by Ultra." },
+  { cat: "generated-clean", title: "More routine requests", sub: "Must be released." },
 ];
+
+/** How the request turned out with Escrow, from the recorded run */
+function status(id: string): { text: string; tone: "safe" | "leak" | "" } {
+  const o = cachedRun(id, "escrow")?.outcome;
+  if (!o) return { text: "", tone: "" };
+  if (o.result.startsWith("BLOCKED")) return o.result.includes("then SENT") ? { text: "Blocked, safe reply released", tone: "leak" } : { text: "Blocked", tone: "leak" };
+  return { text: "Released", tone: "safe" };
+}
+const ATTACK: Category[] = ["killer", "deterministic", "paraphrase", "generated"];
+const kindOf = (m: ScenarioMeta) => (m.category === "contract" ? "Request + extra errand" : ATTACK.includes(m.category) ? "Turned out to be an attack" : "Request");
 
 /** One short line per card: the first sentence of the blurb */
 const oneLine = (t: string) => t.split(/(?<=[.:;—])\s/)[0].replace(/\s*[:;—]$/, ".");
@@ -29,10 +40,10 @@ function recorded(id: string, arm: Arm, meta: ScenarioMeta): { text: string; ton
     if (o.leaked) return { text: `LEAKED · ${o.delivered} sent`, tone: "leak" };
     if (o.result.startsWith("blocked all")) return { text: `BLOCKED · ${TIER_SHORT[o.tier] ?? o.tier}`, tone: "safe" };
     if (o.tier === "C1-contract") return { text: `PARTIAL · contract`, tone: "safe" };
-    return { text: `DELIVERED · ${o.delivered}`, tone: "" };
+    return { text: `SENT · ${o.delivered}`, tone: "" };
   }
   if (o.result.startsWith("BLOCKED")) return { text: o.result.includes("then SENT") ? `BLOCKED → ${meta.retryLabel ?? "safe reply"}` : `BLOCKED · ${TIER_SHORT[o.tier] ?? ruleLabel(o.tier)}`, tone: "safe" };
-  return { text: `VERIFIED · ${o.delivered} sent`, tone: "safe" };
+  return { text: `RELEASED · ${o.delivered} sent`, tone: "safe" };
 }
 
 function Results({ id, meta }: { id: string; meta: ScenarioMeta }) {
@@ -40,7 +51,7 @@ function Results({ id, meta }: { id: string; meta: ScenarioMeta }) {
     <div className="results">
       {(["baseline", "escrow"] as Arm[]).map((arm) => {
         const r = recorded(id, arm, meta);
-        return <div className="result" key={arm}><div className="arm">{arm}</div><div className={`v ${r.tone}`}>{r.text}</div></div>;
+        return <div className="result" key={arm}><div className="arm">{arm === "escrow" ? "with Escrow" : "without Escrow"}</div><div className={`v ${r.tone}`}>{r.text}</div></div>;
       })}
     </div>
   );
@@ -101,6 +112,11 @@ function Stats() {
   );
 }
 
+function StatusPill({ id }: { id: string }) {
+  const st = status(id);
+  return st.text ? <span className={`status-pill ${st.tone}`}>{st.text}</span> : null;
+}
+
 export function ScenarioPage() {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const b = useBackend();
@@ -110,18 +126,18 @@ export function ScenarioPage() {
     <div className="landing">
       <section className="hero">
         <div>
-          <h1>Every side effect waits <em>behind the wall</em>.</h1>
-          <p>A TA agent's emails and writes are held until the whole session is verified.</p>
+          <div className="kicker">Personal AI</div>
+          <h1>Your private <em>TA assistant</em>.</h1>
+          <p>It remembers course policy, handles regrade and extension requests, and nothing leaves until the whole session is verified.</p>
         </div>
       </section>
 
-      <Stats />
-
+      <div className="part-h"><h2>Today's requests</h2><span>Recorded runs of the assistant. Open one to watch it work.</span></div>
       <div className="featured">
         {featured.map((m, i) => (
           <motion.div key={m.id} className="card feature" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 * i, duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}>
             <WallArt />
-            <span className="tag killer">Killer scenario {m.id.slice(0, 2)}</span>
+            <div className="req-top"><span className="tag killer">{kindOf(m)}</span><StatusPill id={m.id} /></div>
             <h3>{m.title}</h3>
             <p className="one-line">{oneLine(m.blurb)}</p>
             <Results id={m.id} meta={m} />
@@ -139,7 +155,7 @@ export function ScenarioPage() {
             <div className={`grid ${open[sec.cat] ? "" : "collapsed"}`}>
               {items.map((m, i) => (
                 <motion.div key={m.id} className="card small" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 * i, duration: 0.4 }}>
-                  <span className="tag">{m.id.split("-")[0]}{m.tag ? ` · ${m.tag}` : ""}</span>
+                  <div className="req-top"><span className="tag">{kindOf(m)}{m.tag ? ` · ${m.tag}` : ""}</span><StatusPill id={m.id} /></div>
                   <h3>{m.title}</h3>
                   <p className="one-line">{oneLine(m.blurb)}</p>
                   <Results id={m.id} meta={m} />
@@ -152,6 +168,28 @@ export function ScenarioPage() {
         );
       })}
 
+      <div className="part-h"><h2>What it knows, what it can do</h2><span>{COURSE}</span></div>
+      <div className="knows">
+        <div className="card panel">
+          <div className="kicker">Course policy memory</div>
+          {POLICY_MEMORY.map((p) => (
+            <div key={p.topic} className="mem"><h4>{p.topic}</h4><ul>{p.lines.map((l) => <li key={l}>{l}</li>)}</ul></div>
+          ))}
+        </div>
+        <div className="card panel">
+          <div className="kicker">Skills</div>
+          {SKILLS.map((k) => <div key={k.name} className="skill"><b className="mono">{k.name}</b><span>{k.description}</span></div>)}
+          <div className="kicker" style={{ marginTop: 18 }}>Every request</div>
+          <ol className="flow-steps">
+            <li>The assistant proposes a task contract; you approve it.</li>
+            <li>It works in a locked sandbox. Emails and writes are held.</li>
+            <li>The whole session is verified, then released or blocked.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div className="part-h"><h2>How it stays private</h2><span>Counts from recorded runs.</span></div>
+      <Stats />
       <div className="foot-note mono">
         {b.checked && b.online && b.liveReady ? "Runs go live against the sandbox." : "Cached runs are real recorded outputs from the live pipeline."}
       </div>

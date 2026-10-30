@@ -424,3 +424,30 @@ a { color: inherit; }
   .one-line { white-space: normal; }
   .section-h { margin: 44px 0 16px; }
 }
+
+/* Assistant home (2026-10-30) */
+.part-h { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin: 72px 0 26px; padding-top: 28px; border-top: 1px solid var(--line); }
+.part-h h2 { margin: 0; font-size: 24px; letter-spacing: -0.01em; }
+.part-h span { color: var(--muted); font-size: 14px; }
+.hero + .part-h { margin-top: 8px; }
+.req-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.card.feature .req-top { max-width: calc(100% - 240px); }
+.status-pill { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.status-pill.safe { color: var(--safe); border-color: rgba(var(--safe-rgb), 0.4); background: rgba(var(--safe-rgb), 0.08); }
+.status-pill.leak { color: var(--blocked); border-color: rgba(var(--blocked-rgb), 0.4); background: rgba(var(--blocked-rgb), 0.08); }
+.knows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+.card.panel { padding: 30px; gap: 14px; }
+.card.panel:hover { transform: none; }
+.mem h4 { margin: 6px 0 6px; font-size: 15px; }
+.mem ul, .flow-steps { margin: 0; padding-left: 20px; color: var(--muted); line-height: 1.6; font-size: 14px; }
+.skill { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; }
+.skill b { color: var(--safe); font-size: 14px; }
+.skill span { color: var(--muted); font-size: 14px; line-height: 1.5; }
+@media (max-width: 980px) {
+  .knows { grid-template-columns: 1fr; gap: 22px; }
+  .card.feature .req-top { max-width: none; }
+  .part-h { margin: 52px 0 20px; }
+}
+/* Long request lists: first row only until "Show all" (all widths) */
+.grid.collapsed > :nth-child(n+5) { display: none; }
+.more-sm { display: block; width: auto; margin-top: 18px; }

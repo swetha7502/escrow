@@ -40,7 +40,7 @@ export const TIER_DEFS: { id: string; label: string; short: string }[] = [
   { id: "C1-contract", label: "Task contract", short: "Contract" },
   { id: "R0-R3-exact-canary", label: "Exact match · canary", short: "Exact / canary" },
   { id: "R4-fingerprint", label: "Fingerprints", short: "Fingerprint" },
-  { id: "R5-super-judge", label: "Nemotron Super judge", short: "Super judge" },
+  { id: "R5-super-judge", label: "Super judge", short: "Super judge" },
 ];
 const RULE_LABEL: Record<string, string> = {
   "C1-contract": "task contract", "R0-canary": "canary", "R0-canary-fuzzy": "canary (fuzzy)", "R0-canary-fragments": "canary (fragments)", "R0-verifier-tamper": "instruction to the verifier", "R3-unauthorized-recipient": "exact record data → unauthorized recipient",
@@ -81,7 +81,7 @@ export function apply(v: RunView, e: UiEvent): RunView {
       s.leakedIds = Array.isArray(e.leakedEffectIds) ? (e.leakedEffectIds as string[]) : undefined;
       s.live = !!e.live; s.cached = !e.live; s.cachedReason = e.cachedReason as string | undefined; s.recordedAt = e.recordedAt as string | undefined;
       s.status = "running";
-      beat("info", "▶", `${e.live ? "Live" : "Cached"} run started`, e.live ? "real OpenClaw agent in the NemoClaw sandbox" : `replaying a recorded live run${e.cachedReason ? ` · ${e.cachedReason}` : ""}`);
+      beat("info", "▶", `${e.live ? "Live" : "Cached"} run started`, e.live ? "real agent in the sandbox" : `replaying a recorded live run${e.cachedReason ? ` · ${e.cachedReason}` : ""}`);
       break;
     }
     case "run_phase":
@@ -89,7 +89,7 @@ export function apply(v: RunView, e: UiEvent): RunView {
       break;
     case "contract_drafted": {
       s.contract = e.contract as Contract; s.contractCall = e.call as Record<string, unknown> | undefined; s.status = "awaiting_approval";
-      beat("pending", "✎", "Nemotron Ultra drafted a task contract", "run paused — waiting for your approval", true);
+      beat("pending", "✎", "Ultra drafted a task contract", "run paused — waiting for your approval", true);
       break;
     }
     case "contract_decided": {

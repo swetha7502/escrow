@@ -57,7 +57,7 @@ export function SplitView({ scenario }: { scenario: string }) {
         <button className="btn ghost" onClick={() => go("/")}>←</button>
         <span className="kicker" style={{ color: "var(--text)" }}>Side by side</span>
         <h2>{meta.title}</h2>
-        <span className="muted" style={{ fontSize: 13 }}>{sequential ? "Live: baseline runs first, then escrow (one sandbox)." : "Same recorded scenario, both arms in lockstep."}</span>
+        <span className="muted" style={{ fontSize: 13 }}>{sequential ? "Baseline first, then Escrow." : "Recorded run, both arms."}</span>
         <div className="spacer" />
         <button className="btn" onClick={() => setLayout(layout === "rows" ? "cols" : "rows")}>{layout === "rows" ? "Columns ▥" : "Rows ▤"}</button>
         {!forced && b.online && <button className="btn" onClick={() => go(`/split/${scenario}?mode=cached`)}>Cached lockstep</button>}

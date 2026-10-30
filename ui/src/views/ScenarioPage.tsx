@@ -1,19 +1,22 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { MEASURED, PIPELINE, SCENARIO_SPECS, cachedRun, liveCounts, scenarioMeta, upper95, type Category, type ScenarioMeta } from "../lib/data";
+import { PIPELINE, SCENARIO_SPECS, cachedRun, liveCounts, scenarioMeta, upper95, type Category, type ScenarioMeta } from "../lib/data";
 import { ruleLabel } from "../lib/runState";
 import { useBackend, go } from "../lib/hooks";
 import type { Arm } from "../lib/types";
 
 const SECTIONS: { cat: Category; title: string; sub: string }[] = [
-  { cat: "contract", title: "Task contract", sub: "Nemotron Ultra scopes the run before it starts; you approve it." },
-  { cat: "skill", title: "TA skills", sub: "Real work that must still get through." },
-  { cat: "paraphrase", title: "Paraphrase leaks", sub: "No exact tokens — only the Super judge can see them." },
-  { cat: "deterministic", title: "Deterministic catches", sub: "Exact match, canaries, fingerprints." },
+  { cat: "contract", title: "Task contract", sub: "You approve the scope first." },
+  { cat: "skill", title: "TA skills", sub: "Real work gets through." },
+  { cat: "paraphrase", title: "Paraphrase leaks", sub: "Caught by the judge." },
+  { cat: "deterministic", title: "Deterministic catches", sub: "Exact match and fingerprints." },
   { cat: "clean", title: "Clean controls", sub: "Legitimate effects pass." },
-  { cat: "generated", title: "Ultra-generated attacks", sub: "Nemotron Ultra wrote the wording; the labels are by construction." },
-  { cat: "generated-clean", title: "Ultra-generated clean tasks", sub: "Must get through: this is the false-block rate." },
+  { cat: "generated", title: "Generated attacks", sub: "Written by Ultra." },
+  { cat: "generated-clean", title: "Generated clean tasks", sub: "Must get through." },
 ];
+
+/** One short line per card: the first sentence of the blurb */
+const oneLine = (t: string) => t.split(/(?<=[.:;—])\s/)[0].replace(/\s*[:;—]$/, ".");
 
 const TIER_SHORT: Record<string, string> = { "R5-super-judge": "Super judge", "R4-fingerprint": "fingerprint", "R0-canary": "canary", "R3-unauthorized-recipient": "exact match", "C1-contract": "contract" };
 
@@ -81,16 +84,14 @@ function WallArt() {
 function Stats() {
   const l = liveCounts();
   const tiles = [
-    { big: `${l.escrowLeaked}/${l.leakN}`, label: "leaks with Escrow", sub: `live OpenClaw agent · baseline leaked ${l.baselineLeaked}/${l.leakN}`, tone: "safe" },
-    { big: `${l.falseBlocks}/${l.cleanN}`, label: "false blocks", sub: "clean live tasks still delivered", tone: "safe" },
-    { big: `${PIPELINE.escrowLeaked}/${PIPELINE.leakN}`, label: "leaks · 200-task pipeline", sub: `baseline ${PIPELINE.baselineLeaked}/${PIPELINE.leakN} · false blocks ${PIPELINE.falseBlocks}/${PIPELINE.cleanN}`, tone: "safe" },
+    { big: `${l.escrowLeaked}/${l.leakN}`, label: "leaks with Escrow", sub: `baseline leaked ${l.baselineLeaked}/${l.leakN}`, tone: "safe" },
+    { big: `${PIPELINE.falseBlocks}/${PIPELINE.cleanN}`, label: "false blocks", sub: "clean tasks still delivered", tone: "safe" },
     l.escrowLeaked === 0
-      ? { big: `≤${Math.round(upper95(l.leakN) * 100)}%`, label: "95% upper bound", sub: `on Escrow's live leak rate from 0/${l.leakN} (small n, said plainly)`, tone: "" }
+      ? { big: `≤${Math.round(upper95(l.leakN) * 100)}%`, label: "95% upper bound", sub: `true leak rate, from 0/${l.leakN}`, tone: "" }
       : { big: `${l.escrowLeaked}`, label: "live leaks got through", sub: "see FAILURE_MODES.md", tone: "" },
   ];
   return (
-    <div className="stats">
-      <div className="stats-cap mono">Measured at commit {MEASURED.commit} · {MEASURED.date} · live OpenClaw agent and 200-task pipeline · counts, not percentages</div>
+    <div className="stats three">
       {tiles.map((t, i) => (
         <motion.div key={t.label} className={`stat ${t.tone}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 + 0.07 * i, duration: 0.45 }}>
           <b>{t.big}</b><span className="l">{t.label}</span><span className="s">{t.sub}</span>
@@ -109,24 +110,8 @@ export function ScenarioPage() {
     <div className="landing">
       <section className="hero">
         <div>
-          <div className="kicker">Nebius × NVIDIA · Personal AI · NemoClaw TA assistant</div>
           <h1>Every side effect waits <em>behind the wall</em>.</h1>
-          <p>
-            A real OpenClaw agent runs in a locked-down NemoClaw sandbox whose only network exit is Nemotron inference on Nebius Token Factory.
-            Its emails and writes are held in escrow, verified as a whole session at commit — exact match, fingerprints, then a Nemotron Super judge —
-            and only verified effects leave, through a host-side sender.
-          </p>
-        </div>
-        <div className="legend">
-          <div><span className="swatch" style={{ background: "var(--safe)", boxShadow: "0 0 10px var(--safe)" }} />verified · allowed</div>
-          <div><span className="swatch" style={{ background: "var(--blocked)", boxShadow: "0 0 10px var(--blocked)" }} />blocked · leaked record data</div>
-          <div><span className="swatch" style={{ background: "rgba(232,238,247,0.7)" }} />unverified · held</div>
-          <div className="mono" style={{ fontSize: 11, marginTop: 4 }}>
-            {!b.checked ? "Checking backend…"
-              : b.online && b.liveReady ? "Runs go LIVE against the sandbox."
-              : b.online || b.locked ? "Runs replay recorded live runs (CACHED)."
-              : "Cached runs are real recorded outputs from the live pipeline. To run it live, follow the README setup."}
-          </div>
+          <p>A TA agent's emails and writes are held until the whole session is verified.</p>
         </div>
       </section>
 
@@ -138,7 +123,7 @@ export function ScenarioPage() {
             <WallArt />
             <span className="tag killer">Killer scenario {m.id.slice(0, 2)}</span>
             <h3>{m.title}</h3>
-            <p>{m.blurb}</p>
+            <p className="one-line">{oneLine(m.blurb)}</p>
             <Results id={m.id} meta={m} />
             <RunButtons id={m.id} big />
           </motion.div>
@@ -156,7 +141,7 @@ export function ScenarioPage() {
                 <motion.div key={m.id} className="card small" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 * i, duration: 0.4 }}>
                   <span className="tag">{m.id.split("-")[0]}{m.tag ? ` · ${m.tag}` : ""}</span>
                   <h3>{m.title}</h3>
-                  <p>{m.blurb}</p>
+                  <p className="one-line">{oneLine(m.blurb)}</p>
                   <Results id={m.id} meta={m} />
                   <RunButtons id={m.id} />
                 </motion.div>
@@ -166,6 +151,10 @@ export function ScenarioPage() {
           </section>
         );
       })}
+
+      <div className="foot-note mono">
+        {b.checked && b.online && b.liveReady ? "Runs go live against the sandbox." : "Cached runs are real recorded outputs from the live pipeline."}
+      </div>
     </div>
   );
 }

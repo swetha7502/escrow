@@ -44,7 +44,7 @@ function Topbar({ route }: { route: string[] }) {
         <span className="brand-mark"><i /><b /><b /></span>
         <span>
           <div className="brand-name">ESCROW</div>
-          <div className="brand-sub">verified-exit safety layer · NemoClaw TA agent</div>
+          <div className="brand-sub">verified-exit safety layer</div>
         </span>
       </a>
       <nav className="nav">
@@ -53,7 +53,7 @@ function Topbar({ route }: { route: string[] }) {
       </nav>
       <div className="spacer" />
       <div className="chips">
-        <span className="chip hide-sm" title="OpenShell network policy: the sandbox's only egress is inference.local → Nebius Token Factory"><span className="dot" style={{ background: "#76b900", boxShadow: "0 0 8px #76b900" }} />EGRESS · TOKEN FACTORY ONLY</span>
+        <span className="chip hide-sm" title="Network policy: the sandbox's only exit is inference"><span className="dot" style={{ background: "var(--safe)", boxShadow: "0 0 8px var(--safe)" }} />EGRESS · LOCKED</span>
         <span className={`chip ${status.cls}`} title={b.reason ?? ""}><span className="dot" />{status.text}</span>
         {/* live access only when a backend answers; the static (Vercel) site with no tunnel is cached-only */}
         {(b.locked || (b.online && getToken())) && <button className="chip" onClick={() => setAsking(true)} title="Shared access token for the live backend (kept in this browser only)">{b.locked ? "UNLOCK LIVE" : "TOKEN ✓"}</button>}

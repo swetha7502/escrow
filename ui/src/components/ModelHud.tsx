@@ -22,7 +22,7 @@ export function ModelHud({ docked, startMin }: { docked?: boolean; startMin?: bo
     <div className={`hud ${min ? "min" : ""} ${docked ? "docked" : ""}`} aria-label="Model HUD">
       <header onClick={toggle} style={{ cursor: "pointer" }}>
         <span style={{ color: active ? "var(--safe)" : undefined }}>● </span>
-        <span>NEMOTRON MODELS</span>
+        <span>MODELS</span>
         <span className="spacer" />
         {cached && <span className="badge-sm">RECORDED</span>}
         <span>{min ? "▴" : "▾"}</span>

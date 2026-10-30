@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import type { Contract } from "../lib/types";
 import { studentName } from "../lib/data";
 import { decideContract } from "../lib/runner";
-import { costOf, usd } from "../lib/models";
+import { costOf, modelName, usd } from "../lib/models";
 
 const ACTIONS: { id: string; label: string }[] = [
   { id: "read_records", label: "Read student records" },
@@ -25,7 +25,7 @@ export function ContractPanel({ c, call, onDecided }: { c: Contract; call?: Reco
   return (
     <motion.div className="contract" initial={{ opacity: 0, y: 20, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.35, ease: [0.2, 0.8, 0.2, 1] }}>
       <div className="ch">
-        <div className="kicker">Task contract · drafted by Nemotron Ultra</div>
+        <div className="kicker">Task contract · drafted by Ultra</div>
         <h3>{c.status === "pending" ? "Approve what this run may do" : c.status === "approved" ? "Contract approved" : "Contract rejected"}</h3>
         <div className="req">“{c.request}”</div>
       </div>
@@ -49,11 +49,11 @@ export function ContractPanel({ c, call, onDecided }: { c: Contract; call?: Reco
             {ACTIONS.map((a) => { const ok = c.allowedActions.includes(a.id); return <span key={a.id} className={`pill ${ok ? "ok" : "no"}`}>{ok ? "✓" : "✕"} {a.label}</span>; })}
           </div>
         </div>
-        {c.rationale && <div><div className="lbl">Ultra's rationale</div><div className="why">{c.rationale}</div></div>}
+        {/* Ultra's rationale stays in the event data; the panel shows only the scope */}
       </div>
       <div className="cf">
         <div className="meta">
-          {String(c.draftedBy).replace("nvidia/", "")}{call ? ` · ${call.ms} ms · ${usd(cost)}` : ""}<br />
+          {modelName(c.draftedBy)}{call ? ` · ${call.ms} ms · ${usd(cost)}` : ""}<br />
           Anything outside this contract is blocked by the hook.
           {c.status === "pending" && <><br /><a href={link} style={{ color: "var(--muted)" }}>Approve from another device ↗</a></>}
         </div>

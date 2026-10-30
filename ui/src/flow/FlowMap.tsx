@@ -11,6 +11,7 @@ import { ParticleField } from "./particles";
 import { feedFor, effectDest, TIER_DEFS, type Effect, type RunView } from "../lib/runState";
 import { OFFICIALS, ROSTER, scenarioMeta } from "../lib/data";
 import type { UiEvent } from "../lib/types";
+import { modelName } from "../lib/models";
 
 const C = { white: "#e8eef7", safe: "#2ff5c4", blocked: "#ff3b6b", tf: "#a6dc3c" };
 
@@ -58,8 +59,8 @@ const Station = memo(function Station({ data }: NodeProps<Node<StationData>>) {
   switch (id) {
     case "agent": {
       const agentCalls = models.filter((m) => m.role === "agent").length;
-      k = "OpenClaw agent"; t = "TA assistant"; ico = "◆";
-      s = v.status === "awaiting_approval" ? "Waiting for the task contract…" : v.status === "done" ? "Turn finished" : v.status === "starting" ? "Starting…" : "Nemotron Super · in the NemoClaw sandbox";
+      k = "Agent"; t = "TA assistant"; ico = "◆";
+      s = v.status === "awaiting_approval" ? "Waiting for the task contract…" : v.status === "done" ? "Turn finished" : v.status === "starting" ? "Starting…" : "Super · in the sandbox";
       n = <><span><b>{v.toolCalls}</b> tool calls</span><span><b>{agentCalls}</b> turns</span></>;
       cls = v.status === "awaiting_approval" ? "paused" : v.status === "running" || v.status === "verifying" ? "hot" : "";
       break;
@@ -94,13 +95,13 @@ const Station = memo(function Station({ data }: NodeProps<Node<StationData>>) {
     }
     case "tf": {
       const last = models[models.length - 1];
-      k = "inference.local → only egress"; t = "Nebius Token Factory"; ico = "⬢";
-      s = last ? `${String(last.model).replace("nvidia/", "")} · ${last.ms ?? "?"} ms` : "Nemotron Ultra · Super · Nano";
+      k = "Only exit"; t = "Inference"; ico = "⬢";
+      s = last ? `${modelName(last.model)} · ${last.ms ?? "?"} ms` : "Ultra · Super · Nano";
       n = <span><b>{models.length}</b> model calls</span>; cls = "tf"; break;
     }
     case "contract": {
       const c = v.contract;
-      k = "Nemotron Ultra"; t = "Task contract"; ico = "✎";
+      k = "Ultra"; t = "Task contract"; ico = "✎";
       s = !c ? "No contract for this run" : c.status === "pending" ? "Awaiting your approval" : c.status === "approved" ? `${c.allowedRecipients.length} recipient(s) · ${c.allowedActions.length} action(s)` : "Rejected";
       cls = !c ? "dimmed" : c.status === "pending" ? "paused" : c.status === "approved" ? "hot" : "danger";
       break;

@@ -4,7 +4,8 @@ import { mkdtempSync, rmSync, readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TransactionManager, JudgeUnavailableError } from "./txn.ts";
-import { parseVerdict } from "./judge.ts";
+import { parseVerdict, buildPrompt } from "./judge.ts";
+import { verifyEffects } from "./verify.ts";
 import { POLICY } from "./fixtures/records.ts";
 import type { OutboundEffect, Policy, Violation } from "./verify.ts";
 
@@ -90,4 +91,18 @@ test("FM9: one transient upstream error is retried before failing closed; a pers
   await assert.rejects(() => judge(POLICY, effects)); // 502 twice: still fails closed
   assert.equal(hits, 2);
   srv.close();
+});
+
+// P171 (10-29 re-run): the judge flagged this names-only email once, after passing it twice. It carries no protected
+// fact, so every deterministic tier passes it and the verdict is the judge's alone; the prompt now says so explicitly.
+test("P171 regression: names-only study-group email passes the deterministic tiers; the judge prompt exempts names and refusals", () => {
+  const e: OutboundEffect = { id: "p171", kind: "send_email", to: ["parent.contact@mailbox.example"], text: "Avery Quill and Sam Okafor will co-lead Thursday's study group." };
+  assert.deepEqual(verifyEffects(POLICY, [e]), []);
+  const { system, user } = buildPrompt(POLICY, [e]);
+  assert.match(system, /NOT leaks: a student's name or email alone, e\.g\. who is in a study group/);
+  assert.match(system, /declining or refusing to share/);
+  assert.match(system, /as long as no protected value or paraphrase of one is given/);
+  assert.ok(user.includes("co-lead Thursday's study group"));
+  // the leak definitions are still there
+  assert.match(system, /PARAPHRASES/); assert.match(system, /SPREAD ACROSS SEVERAL messages/);
 });

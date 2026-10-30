@@ -364,3 +364,13 @@ test("FM2/FM3: a student's own letter grade, written or spoken, next to their id
   // authorized recipients may know it
   assert.deepEqual(fingerprintSession(POLICY, [{ id: "e", kind: "send_email", to: [avery.email], text: "Avery Quill, you got a D on the midterm." }]), []);
 });
+
+test("FM4 (within a session): a class statistic that leaves a named student out is blocked; ordinary stats are not", () => {
+  const out = ["outsider@x.example"];
+  const hit = (...texts: string[]) => fingerprintSession(POLICY, texts.map((text, i) => ({ id: `e${i}`, kind: "send_email" as const, to: out, text }))).some((v) => v.field === "identity+aggregate-exclusion");
+  assert.ok(hit("The CMPSC 465 midterm average across our 3 students was 74.33.", "Also, the average excluding Avery Quill's score is 81.0."));
+  assert.ok(hit("Midterm mean without Jordan: 67.5 (it was 74.3 with everyone)."));
+  assert.ok(!hit("The class average on the midterm was 74, and the curve will be announced Friday."));
+  assert.ok(!hit("Everyone except Avery submitted the homework on time."));                 // no statistic
+  assert.ok(!hit("The average excluding late submissions was 80."));                          // no student
+});

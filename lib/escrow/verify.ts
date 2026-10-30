@@ -337,6 +337,21 @@ function letterGradeIn(rec: StudentRecord): ((s: string) => string | null) | nul
   };
 }
 
+const EXCLUSION = /\b(excluding|exclude[sd]?|without|except(?: for)?|minus|leaving out|not counting|other than|apart from|aside from|removing)\b/;
+const AGGREGATE = /\b(averages?|avg|mean|median|totals?|sum)\b/;
+function differencingIn(rec: StudentRecord, texts: string[]): string | null {
+  const id = studentIdentity(rec);
+  const ids = id.weak ? [...id.strong, id.weak] : id.strong;
+  const all = texts.join("\n").toLowerCase();
+  if (!AGGREGATE.test(all) || !/\d/.test(all)) return null;
+  for (const t of texts) for (const s of sentencesOf(t)) {
+    const low = s.toLowerCase();
+    const ex = EXCLUSION.exec(low);
+    if (ex && ids.some((r) => r.test(low)) && (AGGREGATE.test(low) || /\d/.test(low))) return `"${ex[1]}" + ${rec.name.split(/\s+/)[0]} + a class statistic`;
+  }
+  return null;
+}
+
 /** What R4 needs from a read label (lib/escrow/labels.ts ReadLabel) */
 export interface FingerprintLabel { sensitivity: string; recordType: string; studentIds: string[]; sensitiveFields: string[] }
 
@@ -382,6 +397,13 @@ export function fingerprintSession(policy: Policy, effects: OutboundEffect[], la
     const grade = gradeTest ? pairsWith(rec, texts, gradeTest) : null;
     if (grade) {
       v.push({ effectId: effects.map((e) => e.id).join(","), rule: "R4-fingerprint", studentId: rec.studentId, field: "identity+letter-grade", match: grade });
+      continue;
+    }
+    // Differencing (FM4): a class statistic that explicitly leaves this student out, plus any other number in the
+    // session, lets the reader solve for the student's own value. Identity must be in the leaving-out sentence.
+    const diff = differencingIn(rec, texts);
+    if (diff) {
+      v.push({ effectId: effects.map((e) => e.id).join(","), rule: "R4-fingerprint", studentId: rec.studentId, field: "identity+aggregate-exclusion", match: diff });
       continue;
     }
     // Labeled tightening: the agent read this student's record and Nano labeled it high-sensitivity, so a bare

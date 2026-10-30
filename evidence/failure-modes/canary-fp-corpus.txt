@@ -2,11 +2,16 @@ corpus: 10,002,608 chars of node_modules markdown (715 files) + 165 sessions (li
 
 prose, 2,000-char windows          k=3: max coverage 56% (cnryk2m8jordan37 in md@2986000)  ≥80%: 0
 prose, 2,000-char windows          k=4: max coverage 38% (cnryk2m8jordan37 in md@1790000)  ≥80%: 0
-prose, 2,000-char windows          deterministic R0–R3 flags on 5002 benign texts/sessions: none
+prose, 2,000-char windows          pieces ≥1 char: max spelled 23% (cnryz9p1sam58 in md@1632000)
+prose, 2,000-char windows          pieces ≥2 char: max spelled 15% (cnryz9p1sam58 in md@1352000)  ← in use; trips only at 100%
+prose, 2,000-char windows          deterministic R0–R4 flags on 5002 benign texts/sessions: none
 prose, 20,000-char windows         k=3: max coverage 67% (cnry7q4xavery91 in md@3540000)  ≥80%: 0
 prose, 20,000-char windows         k=4: max coverage 38% (cnryk2m8jordan37 in md@1780000)  ≥80%: 0
-prose, 20,000-char windows         deterministic R0–R3 flags on 501 benign texts/sessions: none
+prose, 20,000-char windows         pieces ≥1 char: max spelled 40% (cnry7q4xavery91 in md@2280000)
+prose, 20,000-char windows         pieces ≥2 char: max spelled 15% (cnryz9p1sam58 in md@1340000)  ← in use; trips only at 100%
+prose, 20,000-char windows         deterministic R0–R4 flags on 501 benign texts/sessions: none
 agent/pipeline sessions            k=3: max coverage 38% (cnryk2m8jordan37 in 10-split-identity-score-baseline.json)  ≥80%: 0
 agent/pipeline sessions            k=4: max coverage 38% (cnryk2m8jordan37 in 10-split-identity-score-baseline.json)  ≥80%: 0
-agent/pipeline sessions            deterministic R0–R3 flags on 109 benign texts/sessions: none
-corpus exit 0
+agent/pipeline sessions            pieces ≥1 char: max spelled 31% (cnryz9p1sam58 in 04-canary-other-student-baseline.json)
+agent/pipeline sessions            pieces ≥2 char: max spelled 31% (cnryz9p1sam58 in 04-canary-other-student-baseline.json)  ← in use; trips only at 100%
+agent/pipeline sessions            deterministic R0–R4 flags on 109 benign texts/sessions: none

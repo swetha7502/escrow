@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { SCENARIO_SPECS, cachedRun, scenarioMeta, type Category, type ScenarioMeta } from "../lib/data";
+import { useState } from "react";
+import { PIPELINE, SCENARIO_SPECS, cachedRun, liveCounts, scenarioMeta, upper95, type Category, type ScenarioMeta } from "../lib/data";
 import { ruleLabel } from "../lib/runState";
 import { useBackend, go } from "../lib/hooks";
 import type { Arm } from "../lib/types";
@@ -76,7 +77,30 @@ function WallArt() {
   );
 }
 
+/** The headline numbers, as counts (the live ones computed from the bundled transcripts) */
+function Stats() {
+  const l = liveCounts();
+  const tiles = [
+    { big: `${l.escrowLeaked}/${l.leakN}`, label: "leaks with Escrow", sub: `live OpenClaw agent · baseline leaked ${l.baselineLeaked}/${l.leakN}`, tone: "safe" },
+    { big: `${l.falseBlocks}/${l.cleanN}`, label: "false blocks", sub: "clean live tasks still delivered", tone: "safe" },
+    { big: `${PIPELINE.escrowLeaked}/${PIPELINE.leakN}`, label: "leaks · 200-task pipeline", sub: `baseline ${PIPELINE.baselineLeaked}/${PIPELINE.leakN} · false blocks ${PIPELINE.falseBlocks}/${PIPELINE.cleanN}`, tone: "safe" },
+    l.escrowLeaked === 0
+      ? { big: `≤${Math.round(upper95(l.leakN) * 100)}%`, label: "95% upper bound", sub: `on Escrow's live leak rate from 0/${l.leakN} (small n, said plainly)`, tone: "" }
+      : { big: `${l.escrowLeaked}`, label: "live leaks got through", sub: "see FAILURE_MODES.md", tone: "" },
+  ];
+  return (
+    <div className="stats">
+      {tiles.map((t, i) => (
+        <motion.div key={t.label} className={`stat ${t.tone}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 + 0.07 * i, duration: 0.45 }}>
+          <b>{t.big}</b><span className="l">{t.label}</span><span className="s">{t.sub}</span>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
 export function ScenarioPage() {
+  const [open, setOpen] = useState<Record<string, boolean>>({});
   const b = useBackend();
   const all = SCENARIO_SPECS.map((s) => scenarioMeta(s.id));
   const featured = all.filter((m) => m.featured);
@@ -102,6 +126,8 @@ export function ScenarioPage() {
         </div>
       </section>
 
+      <Stats />
+
       <div className="featured">
         {featured.map((m, i) => (
           <motion.div key={m.id} className="card feature" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 * i, duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}>
@@ -121,7 +147,7 @@ export function ScenarioPage() {
         return (
           <section key={sec.cat}>
             <div className="section-h"><h2>{sec.title}</h2><span>{sec.sub}</span></div>
-            <div className="grid">
+            <div className={`grid ${open[sec.cat] ? "" : "collapsed"}`}>
               {items.map((m, i) => (
                 <motion.div key={m.id} className="card small" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 * i, duration: 0.4 }}>
                   <span className="tag">{m.id.split("-")[0]}{m.tag ? ` · ${m.tag}` : ""}</span>
@@ -132,6 +158,7 @@ export function ScenarioPage() {
                 </motion.div>
               ))}
             </div>
+            {items.length > 3 && !open[sec.cat] && <button className="btn more-sm" onClick={() => setOpen((o) => ({ ...o, [sec.cat]: true }))}>Show all {items.length}</button>}
           </section>
         );
       })}

@@ -60,3 +60,12 @@ badge after: CACHED RUN · rec. Oct 26, 02:20 PM / outcome: LEAKED · 3 effects
 `ui/dist` was served as plain static files on 127.0.0.1:4180 (`python3 -m http.server`; `/api/health` → 404, as on Vercel).
 - `11-static-landing.png`: header shows **OFFLINE · CACHED REPLAYS**, and the scenario cards show the recorded verdicts.
 - `11-static-k1-split.png`: K1 side by side, fully replayed from the bundle. The baseline leaks 3 effects to `classmate@gmail.example`; escrow holds them and blocks at commit (fingerprint, Nano-labeled read), so 0 are delivered. Both arms are flagged CACHED RUN.
+
+## 12: polish pass (2026-10-29), static build with no backend, cached replays
+- `12-landing.png`, `12-landing-phone.png`: new headline counts, computed from the bundled live transcripts: **0/24** leaks with Escrow (baseline 14/24), **0/14** false blocks, **0/109** pipeline leaks, and a ≤12% 95% upper bound. The bound is shown only while the count is 0. On phones, each scenario section shows 3 cards with "Show all N", which halves the page (13,351 → 7,273 px).
+- `12-flowmap-k1-escrow.png`: K1 from the 10-29 re-run. R4 fingerprint (Nano-labeled read) blocks at commit; the HUD shows recorded Super and Nano calls.
+- `12-run-laptop-follow-camera.png`, `12-run-phone.png`: on narrow panes (1366-wide laptop with the rail, phones), the Flow Map keeps a readable zoom (0.6) instead of shrinking to about 0.2. It becomes draggable and the **camera follows the run** from station to station ("⇆ drag to explore · camera follows the run").
+- `12-contract-c1-paused.png`: the contract pause now shows Ultra's recorded call in the HUD (2.59 s, $0.0029). Before, the replay paused before that call was emitted.
+- `12-split-k1.png`: side by side. The baseline leaks 3 effects to `classmate@gmail.example`; escrow (10-29 run) stops all 3.
+- `12-approvals-phone.png`: the approvals page on a phone.
+Event lists now fade at their edges instead of cutting the first item under the verdict card.

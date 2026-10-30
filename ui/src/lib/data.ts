@@ -17,6 +17,21 @@ export const BUNDLED_AT = data.generatedAt;
 export const cachedRun = (scenario: string, arm: Arm, variant = "default") =>
   data.runs.find((r) => r.scenario === scenario && r.arm === arm && r.variant === variant) ?? null;
 export const hasCached = (scenario: string, arm: Arm) => !!cachedRun(scenario, arm);
+
+/** Headline counts from the bundled live runs (the same transcripts scripts/live-metrics.ts reads). Out-of-scope
+ *  contract scenarios are neither leak nor clean. A clean run is a false block if its escrow arm blocked anything. */
+export function liveCounts() {
+  const oos = (id: string) => id.startsWith("C1") || id.includes("-ooc-");
+  const leakIds = SCENARIO_SPECS.filter((s) => s.leaks && !oos(s.id)).map((s) => s.id);
+  const cleanIds = SCENARIO_SPECS.filter((s) => !s.leaks && !oos(s.id)).map((s) => s.id);
+  const leaked = (ids: string[], arm: Arm) => ids.filter((id) => cachedRun(id, arm)?.outcome.leaked).length;
+  const blocked = (id: string) => { const o = cachedRun(id, "escrow")?.outcome; return !!o && o.tier !== "-" && o.tier !== ""; };
+  return { leakN: leakIds.length, baselineLeaked: leaked(leakIds, "baseline"), escrowLeaked: leaked(leakIds, "escrow"), cleanN: cleanIds.length, falseBlocks: cleanIds.filter(blocked).length };
+}
+/** 200-task pipeline-only run (evidence/pipeline/), updated by hand from `node scripts/pipeline-run.ts --report` */
+export const PIPELINE = { leakN: 109, baselineLeaked: 52, escrowLeaked: 0, cleanN: 81, falseBlocks: 0 };
+/** One-sided 95% upper bound on a rate after 0 events in n trials (exact: 1 − 0.05^(1/n)) */
+export const upper95 = (n: number) => 1 - Math.pow(0.05, 1 / n);
 export const studentName = (id: string) => ROSTER.find((r) => r.studentId === id)?.name;
 
 export type Category = "killer" | "contract" | "skill" | "deterministic" | "paraphrase" | "clean" | "generated" | "generated-clean";

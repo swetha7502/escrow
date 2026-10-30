@@ -3,7 +3,10 @@
 import { createContext, memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ReactFlow, ReactFlowProvider, Handle, Position, useReactFlow, useViewport, type Node, type Edge, type EdgeProps, type NodeProps } from "@xyflow/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { BOX, BARRIER_X, WALL_IN, edges as edgeGeo, mapBounds, pathD, rcptBox, samplePath, type EdgeGeo, type Pt } from "./geometry";
+import { BOX, BARRIER_X, RCPT, WALL_IN, edges as edgeGeo, mapBounds, pathD, rcptBox, samplePath, type EdgeGeo, type Pt } from "./geometry";
+
+/** Below this zoom node text is unreadable: narrower panes pan (and follow the run) instead of shrinking */
+const READABLE_ZOOM = 0.6;
 import { ParticleField } from "./particles";
 import { feedFor, effectDest, TIER_DEFS, type Effect, type RunView } from "../lib/runState";
 import { OFFICIALS, ROSTER, scenarioMeta } from "../lib/data";
@@ -224,6 +227,18 @@ const edgeTypes = { glow: GlowEdge };
 
 // ---- the map ------------------------------------------------------------------------------------------
 
+/** Where the camera should look for an event (narrow panes only) */
+function cameraStation(e: UiEvent): string | null {
+  switch (e.type) {
+    case "contract_drafted": case "contract_decided": return "contract";
+    case "tool_call": return e.tool === "escrow_commit" ? "wall" : e.tool === "read" || e.decision === "blocked" ? "hook" : "shadow";
+    case "effect_queued": case "tier_verdict": case "commit": case "judge_call": return "wall";
+    case "baseline_release": return e.released ? "outbox" : "wall";
+    case "outbox_send": return "sender";
+    default: return null;
+  }
+}
+
 function Inner({ runId, v, onPick }: { runId: string; v: RunView; onPick: (title: string, events: UiEvent[]) => void }) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -238,15 +253,36 @@ function Inner({ runId, v, onPick }: { runId: string; v: RunView; onPick: (title
 
   if (field.current) field.current.vp = vp;
 
-  /** Fit the known layout into the pane ourselves: no dependence on React Flow having measured new nodes */
+  /** Fit the known layout into the pane ourselves: no dependence on React Flow having measured new nodes.
+   *  A pane too narrow to show the whole map at a readable zoom (laptop rail layout, phones) keeps that zoom instead,
+   *  becomes draggable, and the camera follows the run from station to station. */
   const nRef = useRef(nR); nRef.current = nR;
+  const cam = useRef({ pan: false, focusX: BOX.hook.x + BOX.hook.w / 2 });
+  const [panMode, setPanMode] = useState(false);
   const fit = (animate: boolean) => {
     const el = wrap.current; if (!el) return;
     const W = el.clientWidth, H = el.clientHeight; if (!W || !H) return;
     const bnd = mapBounds(nRef.current);
-    const zoom = Math.min(W / bnd.w, H / bnd.h, 1.6);
-    void rf.setViewport({ x: (W - bnd.w * zoom) / 2 - bnd.x * zoom, y: (H - bnd.h * zoom) / 2 - bnd.y * zoom, zoom }, { duration: animate ? 250 : 0 });
+    const fitZoom = Math.min(W / bnd.w, H / bnd.h, 1.6);
+    const pan = fitZoom < READABLE_ZOOM && H / bnd.h > fitZoom * 1.15;
+    cam.current.pan = pan;
+    setPanMode(pan);
+    if (!pan) {
+      void rf.setViewport({ x: (W - bnd.w * fitZoom) / 2 - bnd.x * fitZoom, y: (H - bnd.h * fitZoom) / 2 - bnd.y * fitZoom, zoom: fitZoom }, { duration: animate ? 250 : 0 });
+      return;
+    }
+    const zoom = Math.min(READABLE_ZOOM, H / bnd.h);
+    const x = Math.min(-bnd.x * zoom, Math.max(W - (bnd.x + bnd.w) * zoom, W / 2 - cam.current.focusX * zoom));
+    void rf.setViewport({ x, y: (H - bnd.h * zoom) / 2 - bnd.y * zoom, zoom }, { duration: animate ? 650 : 0 });
   };
+  /** Camera: center on a station (or flow x) when panning; no-op when the whole map fits */
+  const focus = (target: string | number) => {
+    const x = typeof target === "number" ? target : target.startsWith("r:") ? RCPT.x : BOX[target] ? BOX[target].x + BOX[target].w / 2 : null;
+    if (x === null || Math.abs(x - cam.current.focusX) < 1) return;
+    cam.current.focusX = x;
+    if (cam.current.pan) fit(true);
+  };
+  const focusRef = useRef(focus); focusRef.current = focus;
 
   const nodes: Node[] = useMemo(() => {
     const st = (id: string): Node => ({ id, type: "station", position: { x: BOX[id].x, y: BOX[id].y }, data: { id }, style: { width: BOX[id].w, height: BOX[id].h }, draggable: false, selectable: false });
@@ -289,6 +325,8 @@ function Inner({ runId, v, onPick }: { runId: string; v: RunView; onPick: (title
 
     return feedFor(runId).subscribe((e, view, prev) => {
       const f = field.current; if (!f) return;
+      const station = cameraStation(e);
+      if (station) focusRef.current(station);
       switch (e.type) {
         case "model_call": {
           const role = e.role;
@@ -363,9 +401,10 @@ function Inner({ runId, v, onPick }: { runId: string; v: RunView; onPick: (title
         if (t?.event) { ev.stopPropagation(); onPick(`Particle · ${t.event.type}${t.event.tool ? ` · ${t.event.tool}` : ""}`, [t.event]); }
       }}>
         <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onInit={() => fit(false)}
-          nodesDraggable={false} nodesConnectable={false} elementsSelectable={false} zoomOnScroll={false} zoomOnDoubleClick={false} panOnDrag={false}
+          nodesDraggable={false} nodesConnectable={false} elementsSelectable={false} zoomOnScroll={false} zoomOnDoubleClick={false} panOnDrag={panMode}
           preventScrolling={false} onNodeClick={() => { /* nodes handle their own clicks; this keeps them clickable */ }} minZoom={0.2} maxZoom={1.6} proOptions={{ hideAttribution: true }} />
         <canvas ref={canvas} className="particles" style={{ width: "100%", height: "100%" }} />
+        {panMode && <div className="pan-hint">⇆ drag to explore · camera follows the run</div>}
         <AnimatePresence>
           {banner && (
             <motion.div key={banner.n} className={`banner ${banner.tone}`} initial={{ opacity: 0, y: -16, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.35 }}>

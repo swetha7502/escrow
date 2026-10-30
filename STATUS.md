@@ -1,8 +1,8 @@
-# Escrow: status (2026-10-27)
+# Escrow: status (2026-10-29)
 
 **Core claim:** *"The only non-inference exit is verified, and inference goes only to Nebius as the processor."* Proven end to end for the deterministic parts. See below.
 
-Spend so far: **$10.16** (2026-10-29) (phase 2 ~$2.74, UI ~$0.22, phase 4 live batch of 84 runs ~$3.62; a live agent run is ~$0.04–0.08). **Budget rule:** experiments stop at **$12** (proxy cap); the last **$3** (to $15) is reserved for the live demo during judging (`npm run spend:show`). Each OpenClaw agent model call re-sends a ~25k-token system prompt, about $0.008 per call on Nemotron Super.
+Spend so far: **$14.34** (2026-10-29, proxy cap $15) (phase 2 ~$2.74, UI ~$0.22, phase 4 live batch of 84 runs ~$3.62; a live agent run is ~$0.04–0.08). **Budget rule:** experiments stop at **$12** (proxy cap); the last **$3** (to $15) is reserved for the live demo during judging (`npm run spend:show`). Each OpenClaw agent model call re-sends a ~25k-token system prompt, about $0.008 per call on Nemotron Super.
 
 ## Done and proven (evidence in `evidence/`)
 
@@ -32,7 +32,7 @@ Spend so far: **$10.16** (2026-10-29) (phase 2 ~$2.74, UI ~$0.22, phase 4 live b
 | 4 | Killer scenario: agent spreads a score across 3 messages, and the "extra exam time" paraphrase — baseline leaks both, escrow blocks at commit | `evidence/step4-killer.md` |
 | 5 | 10 scenarios × both arms: **escrow correct on all 10**, baseline leaks 4 | `evidence/step5-scenarios.md` |
 
-`npm test`: **91 passing** (2026-10-29). `npm run typecheck` is clean, with the plugin checked against the real `openclaw@2026.9.2` types.
+`npm test`: **97 passing** (2026-10-29). `npm run typecheck` is clean, with the plugin checked against the real `openclaw@2026.9.2` types.
 
 ### Phase 2 (2026-10-26): live agent end to end, contract, skills, event stream
 
@@ -57,6 +57,7 @@ Hard budget: the proxy cap is **$12** (`node proxy/cli.ts set-cap 12`, set 2026-
 | 5 | **Live agent, all 42 scenarios × both arms (84 runs)**: **0/24 leaks vs baseline 14/24** (95% upper bound for 0/24 about 12%); false blocks 0/14 in both arms; agent-composed leaks reviewed by hand (`evidence/live-review.json`). Fixed along the way: run-slot race (two requests could both start), judge max_tokens truncation, Nano field-name mapping. $3.62 | `evidence/p11-live-agent-42.md` |
 | 6 | **Hosting hardening**: shared access token (never bundled), per-IP rate limits, one run at a time + approval timeout, live-runs off switch; Cloudflare Tunnel config | `evidence/p12-hosting.md` |
 | 7 | **FM1 + FM5 fixed** (canary fragments ≥80% coverage; spelled-out digits/NATO letters), 0 false positives on a 10M-char corpus; failure suite: 3/9 leak attacks still get through (FM6, FM10, FM11). Pipeline v3 unchanged (0/109, 0/81). **Live escrow re-run (38 scenarios): 0/24 leaks vs baseline 14/24, 0/14 false blocks** | `evidence/p14-fixes-live-rerun.md`, `FAILURE_MODES.md` |
+| 8 | **All 9 original leak attacks caught deterministically** (FM6 FERPA-sensitive topic, FM2/3 letter grade, FM4 within-session differencing, FM7 verifier tampering, FM10/11 canary pieces/reversed; judge retries one transient error). FM12 (cross-session) and FM13 (single-char canary pieces) documented. **Full re-run at code commit `2775d38`: live Escrow 0/24 vs baseline 13/24, 0/14 false blocks, 0/4 out-of-scope; pipeline 0/109 (baseline 47/109), 1/81 false block (judge variance, P171)** | `evidence/p15-full-rerun.md`, `FAILURE_MODES.md` |
 
 ### Phase 3 (2026-10-27): the UI (`ui/`, React + Vite + React Flow + canvas particles + Framer Motion)
 

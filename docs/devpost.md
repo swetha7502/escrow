@@ -4,7 +4,7 @@
 Escrow
 
 ## Tagline (≤ 200 chars)
-A private TA assistant in NVIDIA NemoClaw whose emails and writes wait in escrow until the whole session is verified, so it can't leak student records. 0/24 live leaks vs 14/24.
+A private TA assistant in NVIDIA NemoClaw whose emails and writes wait in escrow until the whole session is verified, so it can't leak student records. 0/24 live leaks vs 13/24.
 
 ## Description
 
@@ -23,9 +23,10 @@ Escrow is a private, always-on TA assistant: a real OpenClaw agent in an NVIDIA 
   - a **Nemotron Super** judge for paraphrase, which fails closed.
 - **A control room UI.** A live Flow Map shows particles moving through hook → shadow FS → escrow wall → outbox, with tiers lighting up at commit and blocked effects shattering. There's a side-by-side baseline-vs-Escrow view, the Ultra contract approval, and a Nemotron model HUD. Recorded live runs replay with no backend, clearly badged **CACHED RUN**.
 
-**Results, as counts:**
-- **Live agent:** the per-call baseline leaked **14/24** leak scenarios; Escrow leaked **0/24**, with **0/14** false blocks.
-- **200-task pipeline:** **0/109** leaks with Escrow (baseline 52/109) and **0/81** false blocks.
+**Results, as counts** (all at code commit `2775d38`, 2026-10-29):
+- **Live agent:** the per-call baseline leaked **13/24** leak scenarios; Escrow leaked **0/24**, with **0/14** false blocks and **0/4** out-of-scope effects delivered.
+- **200-task pipeline:** **0/109** leaks with Escrow (baseline 47/109). **1/81** false blocks: the Super judge flagged a names-only email it had passed twice before, which we report as judge variance.
+- **Failure-mode suite:** 9 of 11 published attacks are caught by the deterministic tiers alone.
 - **Small sample, said plainly:** 0/24 still allows a true leak rate of up to about 12% (one-sided 95% upper bound).
 
 ### How we built it
@@ -46,7 +47,7 @@ Escrow is a private, always-on TA assistant: a real OpenClaw agent in an NVIDIA 
 
 ### Accomplishments that we're proud of
 - **Catching the leak per-call filters can't see.** The split-score leak (name and score in separate emails) and the paraphrased accommodation get through the baseline and are blocked by Escrow, live, with the real agent.
-- **Attacking our own system in public.** `FAILURE_MODES.md` lists 11 reproducible attacks. Three of nine leak attacks still get through, and we say which and why. Two that used to get through, found the same way, were fixed and checked against a 10M-character false-positive corpus (0 flags).
+- **Attacking our own system in public, then fixing it.** `FAILURE_MODES.md` lists 13 reproducible attacks. All 9 leak attacks we found before 10-29, including a student's medical emergency that wasn't in any record field and an email telling the verifier to answer "leak=false", are now caught **deterministically**. Each fix has a commit, a regression test, and 0 flags on a 10M-character false-positive corpus. Two still get through, and we say which: a leak split across separate sessions, and a canary in single-character pieces.
 - **A provable exit.** The only non-inference exit is verified: egress lockdown, a host-side key holder and host-side re-verification, each with saved proof.
 
 ### What we learned
@@ -55,9 +56,9 @@ Escrow is a private, always-on TA assistant: a real OpenClaw agent in an NVIDIA 
 - **Count, don't brag.** 0/24 is a small sample, and saying so makes the number more credible, not less.
 
 ### What's next
-- **Cross-session memory of disclosures**, so averages leaked a week apart are compared: the differencing attack across sessions.
-- **Protecting free-text facts** (FM6). Hand the Nano labels for unstructured notes and conversations to the fingerprint tier and the judge.
-- **More canary transforms** (reversal, 3-character pieces), each gated on the false-positive corpus.
+- **Cross-session memory of disclosures** (FM12): a per-recipient log of what has already left, checked at every later commit, so two halves of a leak a week apart get compared.
+- **Wider free-text coverage.** FM6 is now caught by a FERPA-topic lexicon. Next, hand the Nano labels for unstructured notes and conversations to R4, so wording outside the lexicon is covered too.
+- **Single-character canary pieces** (FM13), once the false-positive corpus shows a safe margin.
 - **Editable Ultra contracts** before approval. Today it's approve or reject.
 - **A pilot with real course staff**, on synthetic records first, then under an institutional data agreement.
 

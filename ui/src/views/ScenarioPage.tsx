@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { PIPELINE, SCENARIO_SPECS, cachedRun, liveCounts, scenarioMeta, upper95, type Category, type ScenarioMeta } from "../lib/data";
+import { MEASURED, PIPELINE, SCENARIO_SPECS, cachedRun, liveCounts, scenarioMeta, upper95, type Category, type ScenarioMeta } from "../lib/data";
 import { ruleLabel } from "../lib/runState";
 import { useBackend, go } from "../lib/hooks";
 import type { Arm } from "../lib/types";
@@ -90,6 +90,7 @@ function Stats() {
   ];
   return (
     <div className="stats">
+      <div className="stats-cap mono">Measured at commit {MEASURED.commit} · {MEASURED.date} · live OpenClaw agent and 200-task pipeline · counts, not percentages</div>
       {tiles.map((t, i) => (
         <motion.div key={t.label} className={`stat ${t.tone}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 + 0.07 * i, duration: 0.45 }}>
           <b>{t.big}</b><span className="l">{t.label}</span><span className="s">{t.sub}</span>

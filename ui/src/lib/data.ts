@@ -28,8 +28,10 @@ export function liveCounts() {
   const blocked = (id: string) => { const o = cachedRun(id, "escrow")?.outcome; return !!o && o.tier !== "-" && o.tier !== ""; };
   return { leakN: leakIds.length, baselineLeaked: leaked(leakIds, "baseline"), escrowLeaked: leaked(leakIds, "escrow"), cleanN: cleanIds.length, falseBlocks: cleanIds.filter(blocked).length };
 }
+/** Code commit and date every headline number was measured at (live arms, pipeline, failure-mode suite) */
+export const MEASURED = { commit: "2775d38", date: "2026-10-29" };
 /** 200-task pipeline-only run (evidence/pipeline/), updated by hand from `node scripts/pipeline-run.ts --report` */
-export const PIPELINE = { leakN: 109, baselineLeaked: 52, escrowLeaked: 0, cleanN: 81, falseBlocks: 0 };
+export const PIPELINE = { leakN: 109, baselineLeaked: 47, escrowLeaked: 0, cleanN: 81, falseBlocks: 1 }; // v4, commit 2775d38 (P171: judge variance)
 /** One-sided 95% upper bound on a rate after 0 events in n trials (exact: 1 − 0.05^(1/n)) */
 export const upper95 = (n: number) => 1 - Math.pow(0.05, 1 / n);
 export const studentName = (id: string) => ROSTER.find((r) => r.studentId === id)?.name;

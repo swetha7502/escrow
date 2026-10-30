@@ -286,7 +286,15 @@ export interface FingerprintLabel { sensitivity: string; recordType: string; stu
 export function fingerprintSession(policy: Policy, effects: OutboundEffect[], labels: FingerprintLabel[] = []): Violation[] {
   const hay = effects.flatMap((e) => expandEncodings(e.text)).map(norm).join("\n");
   const raw = effects.flatMap((e) => expandEncodings(e.text)).join("\n").toLowerCase();
-  const present = (f: Fact) => hay.includes(f.norm);
+  // Identity tokens must stand as words ("Pike" yes, "spike" no); separators between letters are allowed, so
+  // "A.v.e.r.y" still counts. Unique IDs and values keep the normalized substring match.
+  const idRe = new Map<string, RegExp>();
+  const present = (f: Fact) => {
+    if (f.kind !== "identity") return hay.includes(f.norm);
+    let re = idRe.get(f.norm);
+    if (!re) { re = new RegExp(`(^|[^a-z0-9])${[...f.norm].join("[^a-z0-9]{0,3}")}($|[^a-z0-9])`); idRe.set(f.norm, re); }
+    return re.test(raw);
+  };
   const v: Violation[] = [];
   for (const rec of policy.records) {
     // authorized iff every recipient of every effect may receive this record

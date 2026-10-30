@@ -6,3 +6,4 @@ state/
 plugins/*/dist/
 ui/dist/
 ui/.env
+scripts/.verify-old.ts
